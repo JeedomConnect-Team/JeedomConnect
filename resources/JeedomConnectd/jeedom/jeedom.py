@@ -24,7 +24,6 @@ from queue import Queue
 import socketserver
 from socketserver import (TCPServer, StreamRequestHandler)
 import unicodedata
-import pyudev
 
 
 class jeedom_com():
