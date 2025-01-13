@@ -1262,8 +1262,8 @@ class JeedomConnectUtils {
                 $startHist = date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . ' -' . config::byKey('historyCalculPeriod') . ' hour'));
                 $historyStatistique = $cmd->getStatistique($startHist, date('Y-m-d H:i:s'));
 
-                if ($historyStatistique['avg'] == 0 && $historyStatistique['min'] == 0 && $historyStatistique['max'] == 0) {
-                    $val = $cmd->execCmd();
+                $val = $cmd->execCmd();
+                if ($historyStatistique['avg'] == 0 && $historyStatistique['min'] == 0 && $historyStatistique['max'] == 0 && $val != '') {
                     $averageHistoryValue = round($val, 1);
                     $minHistoryValue = round($val, 1);
                     $maxHistoryValue = round($val, 1);
