@@ -15,7 +15,9 @@
 		"forum": "https://community.jeedom.com/tag/plugin-jeedomconnect",
 		"video": "https://youtu.be/PDxdn3EynKo"
 	},
+	"hasDependency": true,
 	"hasOwnDeamon": true,
+	"maxDependancyInstallTime": 60,
 	"language": [
 		"fr_FR"
 	],
