@@ -444,7 +444,7 @@ class JeedomConnectWidget extends config {
 	 * @param string $oldApiKey 
 	 * @param array $newApiKey 
 	 * @param bool $removeOld 
-	 * @return void
+	 * @return bool
 	 */
 	public static function copyCustomData($oldApiKey, $newApiKey, $removeOld = false) {
 		JCLog::debug('Copying custom data from ' . $oldApiKey . ' to ' . json_encode($newApiKey));

@@ -992,7 +992,7 @@ class JeedomConnectUtils {
      *
      * @param string $dir
      * @param string $prefix
-     * @return void
+     * @return mixed
      */
     public static function scan_dir($dir, $prefix = null, $withTime = false) {
         $ignored = array('.', '..', '.htaccess');
