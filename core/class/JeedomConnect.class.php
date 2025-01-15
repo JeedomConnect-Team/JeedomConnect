@@ -226,8 +226,8 @@ class JeedomConnect extends eqLogic {
 		$JCapiKeySize = strlen($JCapiKey);
 
 
-		$path = realpath(dirname(__FILE__) . '/../../resources/JeedomConnectd'); // répertoire du démon à modifier
-		$cmd = self::PYTHON_PATH . ' ' . $path . '/JeedomConnectd.py'; // nom du démon à modifier
+		$parent_path = realpath(dirname(__FILE__) . '/../..'); // répertoire parent du démon
+		$cmd = 'cd ' . escapeshellarg($parent_path) . ' && ' . self::PYTHON_PATH . ' -m resources.JeedomConnectd.JeedomConnectd'; // nom du démon à modifier
 		$cmd .= ' --loglevel ' . log::convertLogLevel($daemonLog); // log::convertLogLevel(log::getLogLevel(__CLASS__));
 		$cmd .= ' --socketport ' . config::byKey('socketport', __CLASS__, '58090'); // port socket - échange entre le démon en PY et l'api jeedom
 		$cmd .= ' --websocketport ' . config::byKey('port', __CLASS__, '8090'); // port d'écoute du démon pour échange avec l'application JC

@@ -1,5 +1,3 @@
-import logging
-import argparse
 import sys
 import os
 import argparse
@@ -11,9 +9,11 @@ import time
 import sys
 import uuid
 
+from resources.JeedomConnectd import logger
+
 from multiprocessing import Process
 
-from jeedom.jeedom import jeedom_utils, jeedom_com, jeedom_socket, JEEDOM_SOCKET_MESSAGE
+from resources.JeedomConnectd.jeedom.jeedom import jeedom_utils, jeedom_com, jeedom_socket, JEEDOM_SOCKET_MESSAGE
 
 from websocket_server import WebsocketServer, WebSocketHandler
 from socketserver import TCPServer
@@ -392,6 +392,8 @@ class JCWebSocketHandler(WebSocketHandler):
 # ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
 
+
+
 _log_level = "debug"
 _socket_port = 58090
 _websocket_port = 8090
@@ -418,7 +420,7 @@ _pidfile = args.pid
 _apikey = args.apikey
 _callback = args.callback
 
-jeedom_utils.set_log_level(_log_level)
+logger.setLevel(jeedom_utils.convert_log_level(_log_level)) 
 
 logger.info("Start daemon")
 logger.info("Log level : " + str(_log_level))
