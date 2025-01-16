@@ -7,10 +7,10 @@
 	"author": "Jared-94 et ToMiToMas",
 	"require": "4.2",
 	"category": "communication",
-	"documentation_beta": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/index_beta",
-	"documentation": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/index",
-	"changelog_beta": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/changelog_beta",
-	"changelog": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/changelog",
+	"documentation_beta": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index_beta",
+	"documentation": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index",
+	"changelog_beta": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog_beta",
+	"changelog": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog",
 	"link": {
 		"forum": "https://community.jeedom.com/tag/plugin-jeedomconnect",
 		"video": "https://youtu.be/PDxdn3EynKo"
