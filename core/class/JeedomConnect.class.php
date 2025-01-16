@@ -2064,7 +2064,9 @@ class JeedomConnect extends eqLogic {
 		$infoPlugin .= '<b>Version PHP</b> : ' . phpversion() . '<br/>';
 
 		list($tag,) = self::getNotifBinVersion();
-		$infoPlugin .= '<b>Bin</b> : ' . self::install_notif_info() . ' / ' . $tag . '<br/><br/>';
+		$infoPlugin .= '<b>Bin</b> : ' . self::install_notif_info() . ' / ' . $tag . '<br/>';
+		$dep = self::dependancy_info();
+		$infoPlugin .= '<b>Dépendances</b> : ' . ($dep['state'] ?? 'N/A') . '<br/><br/>';
 
 		$infoPlugin .= '<b>Equipements</b> : <br/>';
 
