@@ -411,7 +411,7 @@ parser.add_argument("--websocketport", help="Socket Port", type=int)
 parser.add_argument("--callback", help="Value to write", type=str)
 parser.add_argument("--apikey", help="Value to write", type=str)
 parser.add_argument("--pid", help="Value to write", type=str)
-args = parser.parse_args()
+args, unknown = parser.parse_known_args()
 
 _log_level = args.loglevel
 _socket_port = args.socketport

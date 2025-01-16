@@ -234,6 +234,7 @@ class JeedomConnect extends eqLogic {
 		$cmd .= ' --callback ' . network::getNetworkAccess('internal', 'proto:127.0.0.1:port:comp') . '/plugins/JeedomConnect/core/api/JeedomConnect.api.php'; // chemin de la callback url à modifier (voir ci-dessous)
 		$cmd .= ' --apikey ' . $JCapiKey; // l'apikey pour authentifier les échanges suivants
 		$cmd .= ' --pid ' . jeedom::getTmpFolder(__CLASS__) . '/deamon.pid'; // et on précise le chemin vers le pid file (ne pas modifier)
+		$cmd .= ' --trace ' . config::byKey('traceLog', 'JeedomConnect', 0); // verbose ou non
 		JCLog::debug('Starting daemon with cmd >>' . str_replace($JCapiKey, str_repeat('*', $JCapiKeySize), $cmd) . '<<');
 		exec($cmd . ' >> ' . log::getPathToLog('JeedomConnect_daemon') . ' 2>&1 &'); // 'template_daemon' est le nom du log pour votre démon, vous devez nommer votre log en commençant par le pluginid pour que le fichier apparaisse dans la page de config
 
