@@ -61,6 +61,10 @@ function JeedomConnect_update() {
   }
 
 
+  $wsDir = __DIR__ . '/../resources/JeedomConnectd/websocket_server';
+  JCLog::debug('removing websocket_server dir');
+  JeedomConnectUtils::delTree($wsDir);
+
   $dependencyInfo = JeedomConnect::dependancy_info();
   if (!isset($dependencyInfo['state'])) {
     message::add('JeedomConnect', __('Veuilez vérifier les dépendances', __FILE__));
