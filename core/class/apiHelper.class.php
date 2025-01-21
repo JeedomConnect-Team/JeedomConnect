@@ -1334,7 +1334,7 @@ class apiHelper {
       $jeeObject = array(
         'id' => (string) $array['id'],
         'name' => $array['name'],
-        'display' => JeedomConnectUtils::getIconAndColor($array['display']['icon'])
+        'display' => JeedomConnectUtils::getIconAndColor($array['display']['icon'] ?? array())
       );
       array_push($result['payload']['objects'], $jeeObject);
     }
