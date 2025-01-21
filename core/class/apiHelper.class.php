@@ -1334,7 +1334,7 @@ class apiHelper {
       $jeeObject = array(
         'id' => (string) $array['id'],
         'name' => $array['name'],
-        'display' => JeedomConnectUtils::getIconAndColor($array['display']['icon'])
+        'display' => JeedomConnectUtils::getIconAndColor($array['display']['icon'] ?? array())
       );
       array_push($result['payload']['objects'], $jeeObject);
     }
@@ -2175,7 +2175,8 @@ class apiHelper {
       array(
         'type' => 'SC_INFO',
         'payload' => apiHelper::getScenarioData($config, $scAll, false)
-      ), array(
+      ),
+      array(
         'type' => 'OBJ_INFO',
         'payload' => apiHelper::getObjectData($config, false)
       )
@@ -3122,6 +3123,7 @@ class apiHelper {
       throw new Exception($commandId . " is not a valid command");
     }
 
+    JCLog::info("Mise à jour de la commande $commandId par un évènement [" . json_encode($message) . "]");
     $cmd->event($message);
   }
 

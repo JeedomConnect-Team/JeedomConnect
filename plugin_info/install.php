@@ -60,6 +60,25 @@ function JeedomConnect_update() {
     JeedomConnect::install_notif();
   }
 
+
+  $wsDir = __DIR__ . '/../resources/JeedomConnectd/websocket_server';
+  JCLog::debug('removing websocket_server dir');
+  JeedomConnectUtils::delTree($wsDir);
+
+  $dependencyInfo = JeedomConnect::dependancy_info();
+  if (!isset($dependencyInfo['state'])) {
+    message::add('JeedomConnect', __('Veuilez vérifier les dépendances', __FILE__));
+  } elseif ($dependencyInfo['state'] == 'nok') {
+    try {
+      $plugin = plugin::byId('JeedomConnect');
+      $plugin->dependancy_install();
+    } catch (\Throwable $th) {
+      message::add('JeedomConnect', __('Cette mise à jour nécessite de réinstaller les dépendances même si elles sont marquées comme OK', __FILE__));
+    }
+  }
+
+
+
   //////// PLEASE KEEP IT AT THE END !! 
   // FORCE save on all equipments to save new cmd
   /** @var JeedomConnect $eqLogic */
