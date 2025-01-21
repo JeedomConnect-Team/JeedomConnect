@@ -1348,7 +1348,7 @@ class JeedomConnect extends eqLogic {
 				JCLog::error("Erreur détectée sur le dernier envoi de notification => " . json_encode($outputJson));
 			}
 		} else {
-			JCLog::error("L'envoi de la notification ne peut pas être vérifiée : " . $output);
+			JCLog::warning("L'envoi de la notification ne peut pas être vérifiée : >" . $output . "<");
 		}
 
 		if (is_null($output) || empty($output)) {
