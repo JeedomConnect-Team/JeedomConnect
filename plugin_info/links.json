@@ -15,21 +15,21 @@
     },
     {
         "id": "git",
-        "index": 3,
+        "index": 5,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/github.webp",
         "title": "Github du projet",
-        "link": "https://github.com/jared-94/JeedomConnect/"
+        "link": "https://github.com/JeedomConnect-Team/JeedomConnect/"
     },
     {
         "id": "donate",
-        "index": 5,
+        "index": 4,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/donate.webp",
         "title": "Faire un don",
         "link": "https://tinyurl.com/JeedomConnect"
     },
     {
         "id": "donate2",
-        "index": 4,
+        "index": 3,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/kofi.png",
         "title": "Faire un don",
         "link": "https://ko-fi.com/tomitomas"
@@ -46,6 +46,6 @@
         "index": 7,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/copyright.webp",
         "title": "Licence",
-        "link": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/license.html"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/license.html"
     }
 ]

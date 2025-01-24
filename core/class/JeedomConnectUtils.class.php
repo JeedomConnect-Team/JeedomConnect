@@ -341,7 +341,7 @@ class JeedomConnectUtils {
         $linksData = json_decode(file_get_contents(JeedomConnect::$_plugin_info_dir . 'links.json'), true);
 
         foreach ($linksData as $key => $item) {
-            if ($item['id'] == 'donate' && file_exists(JeedomConnect::$_plugin_info_dir . 'partiallink')) {
+            if ((strpos($item['id'], 'donate') !== false) && file_exists(JeedomConnect::$_plugin_info_dir . 'partiallink')) {
                 unset($linksData[$key]);
                 continue;
             }
@@ -353,6 +353,9 @@ class JeedomConnectUtils {
             }
         }
 
+        usort($linksData, function ($a, $b) {
+            return $a['index'] <=> $b['index'];
+        });
         // JCLog::debug('result : ' .  json_encode($linksData));
 
         return $linksData;
