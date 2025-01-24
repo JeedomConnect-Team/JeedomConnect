@@ -4,14 +4,14 @@
         "index": 1,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/doc.webp",
         "title": "Documentation",
-        "link": "http://jared-94.github.io/JeedomConnectDoc/fr_FR/index"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index"
     },
     {
         "id": "changelog",
         "index": 2,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/listmodif.webp",
         "title": "Changelog",
-        "link": "http://jared-94.github.io/JeedomConnectDoc/fr_FR/changelog"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog"
     },
     {
         "id": "git",
@@ -22,14 +22,14 @@
     },
     {
         "id": "donate",
-        "index": 4,
+        "index": 5,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/donate.webp",
         "title": "Faire un don",
         "link": "https://tinyurl.com/JeedomConnect"
     },
     {
         "id": "donate2",
-        "index": 5,
+        "index": 4,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/kofi.png",
         "title": "Faire un don",
         "link": "https://ko-fi.com/tomitomas"
