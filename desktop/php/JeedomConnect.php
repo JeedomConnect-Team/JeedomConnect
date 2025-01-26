@@ -555,8 +555,12 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 									</sup>
 								</label>
 								<div class="col-sm-6 pass_show">
-									<input id="actionPwd" type="password" class="eqLogicAttr form-control" data-l1key="configuration" data-l2key="pwdAction" placeholder="{{Mot de passe pour confirmer une action sur l'application}}" />
-									<span toggle="#password-field" class="eye fa fa-fw fa-eye field_icon toggle-password"></span>
+									<div class="input-group">
+										<input type="text" class="eqLogicAttr form-control inputPassword" data-l1key="configuration" data-l2key="pwdAction" placeholder="{{Mot de passe pour confirmer une action sur l'application}}" />
+										<span class="input-group-btn">
+											<a class="btn btn-default form-control bt_showPass roundedRight"><i class="fas fa-eye"></i></a>
+										</span>
+									</div>
 								</div>
 							</div>
 

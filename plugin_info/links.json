@@ -2,43 +2,50 @@
     {
         "id": "doc",
         "index": 1,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/doc.webp",
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/doc.webp",
         "title": "Documentation",
-        "link": "http://jared-94.github.io/JeedomConnectDoc/fr_FR/index"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index"
     },
     {
         "id": "changelog",
         "index": 2,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/listmodif.webp",
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/listmodif.webp",
         "title": "Changelog",
-        "link": "http://jared-94.github.io/JeedomConnectDoc/fr_FR/changelog"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog"
     },
     {
         "id": "git",
-        "index": 3,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/github.webp",
+        "index": 5,
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/github.webp",
         "title": "Github du projet",
-        "link": "https://github.com/jared-94/JeedomConnect/"
+        "link": "https://github.com/JeedomConnect-Team/JeedomConnect/"
     },
     {
         "id": "donate",
         "index": 4,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/donate.webp",
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/donate.webp",
         "title": "Faire un don",
         "link": "https://tinyurl.com/JeedomConnect"
     },
     {
+        "id": "donate2",
+        "index": 3,
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/kofi.png",
+        "title": "Faire un don",
+        "link": "https://ko-fi.com/tomitomas"
+    },
+    {
         "id": "community",
-        "index": 5,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/community.webp",
+        "index": 6,
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/community.webp",
         "title": "Aller sur le forum",
         "link": "https://community.jeedom.com/tag/plugin-jeedomconnect"
     },
     {
         "id": "copyright",
-        "index": 6,
-        "img": "/var/www/html/plugins/JeedomConnect/data/img/copyright.webp",
+        "index": 7,
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/copyright.webp",
         "title": "Licence",
-        "link": "https://jared-94.github.io/JeedomConnectDoc/fr_FR/license.html"
+        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/license.html"
     }
 ]

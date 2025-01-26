@@ -30,6 +30,7 @@ class JeedomConnect extends eqLogic {
 	public static $_widgetPossibility = array('custom' => true);
 	/*     * *************************Attributs****************************** */
 
+	private const PYTHON_PATH = __DIR__ . '/../../resources/venv/bin/python3';
 	public static $_initialConfig = array(
 		'type' => 'JEEDOM_CONFIG',
 		'formatVersion' => '1.0',
@@ -214,6 +215,9 @@ class JeedomConnect extends eqLogic {
 		if ($deamon_info['launchable'] != 'ok') {
 			throw new Exception(__('Veuillez vérifier la configuration', __FILE__));
 		}
+		if (!file_exists(self::PYTHON_PATH)) {
+			throw new Exception(__("VENV n'est pas disponible. Veuillez réinstaller les dépendances", __FILE__));
+		}
 
 		$daemonLogConfig = config::byKey('daemonLog', __CLASS__, 'parent');
 		$daemonLog = ($daemonLogConfig == 'parent') ? log::getLogLevel(__CLASS__) : $daemonLogConfig;
@@ -222,14 +226,15 @@ class JeedomConnect extends eqLogic {
 		$JCapiKeySize = strlen($JCapiKey);
 
 
-		$path = realpath(dirname(__FILE__) . '/../../resources/JeedomConnectd'); // répertoire du démon à modifier
-		$cmd = 'python3 ' . $path . '/JeedomConnectd.py'; // nom du démon à modifier
+		$parent_path = realpath(dirname(__FILE__) . '/../..'); // répertoire parent du démon
+		$cmd = 'cd ' . escapeshellarg($parent_path) . ' && ' . self::PYTHON_PATH . ' -m resources.JeedomConnectd.JeedomConnectd'; // nom du démon à modifier
 		$cmd .= ' --loglevel ' . log::convertLogLevel($daemonLog); // log::convertLogLevel(log::getLogLevel(__CLASS__));
 		$cmd .= ' --socketport ' . config::byKey('socketport', __CLASS__, '58090'); // port socket - échange entre le démon en PY et l'api jeedom
 		$cmd .= ' --websocketport ' . config::byKey('port', __CLASS__, '8090'); // port d'écoute du démon pour échange avec l'application JC
 		$cmd .= ' --callback ' . network::getNetworkAccess('internal', 'proto:127.0.0.1:port:comp') . '/plugins/JeedomConnect/core/api/JeedomConnect.api.php'; // chemin de la callback url à modifier (voir ci-dessous)
 		$cmd .= ' --apikey ' . $JCapiKey; // l'apikey pour authentifier les échanges suivants
 		$cmd .= ' --pid ' . jeedom::getTmpFolder(__CLASS__) . '/deamon.pid'; // et on précise le chemin vers le pid file (ne pas modifier)
+		$cmd .= ' --trace ' . config::byKey('traceLog', 'JeedomConnect', 0); // verbose ou non
 		JCLog::debug('Starting daemon with cmd >>' . str_replace($JCapiKey, str_repeat('*', $JCapiKeySize), $cmd) . '<<');
 		exec($cmd . ' >> ' . log::getPathToLog('JeedomConnect_daemon') . ' 2>&1 &'); // 'template_daemon' est le nom du log pour votre démon, vous devez nommer votre log en commençant par le pluginid pour que le fichier apparaisse dans la page de config
 
@@ -275,6 +280,62 @@ class JeedomConnect extends eqLogic {
 	}
 
 	/*     * -------------------------------- END DAEMON -------------------------------- */
+
+	/*     * ********************** DEPENDANCIES MANAGEMENT *************************** */
+
+	public static function dependancy_install() {
+		// exec("sudo dos2unix " . dirname(__FILE__) . '/../../resources/install_apt.sh ');
+		log::remove(__CLASS__ . '_dep');
+		return array(
+			'script' => dirname(__FILE__) . '/../../resources/install_apt.sh ',
+			'log' => log::getPathToLog(__CLASS__ . '_dep')
+		);
+	}
+
+	public static function dependancy_info() {
+		$return = array();
+		$return['log'] = log::getPathToLog(__CLASS__ . '_dependance');
+		$return['progress_file'] = jeedom::getTmpFolder(__CLASS__) . '/dependance';
+		$return['state'] = 'ok';
+		if (file_exists(jeedom::getTmpFolder(__CLASS__) . '/dependance')) {
+			$return['state'] = 'in_progress';
+		} elseif (!self::pythonRequirementsInstalled(self::PYTHON_PATH, __DIR__ . '/../../resources/requirements.txt')) {
+			$return['state'] = 'nok';
+		}
+		return $return;
+	}
+
+	/**
+	 * copyrigth : Mips2648
+	 *
+	 * @param string $pythonPath
+	 * @param string $requirementsPath
+	 * @return void
+	 */
+	private static function pythonRequirementsInstalled(string $pythonPath, string $requirementsPath) {
+		if (!file_exists($pythonPath) || !file_exists($requirementsPath)) {
+			return false;
+		}
+		exec("{$pythonPath} -m pip freeze", $packages_installed);
+		$packages = join("||", $packages_installed);
+		exec("cat {$requirementsPath}", $packages_needed);
+		foreach ($packages_needed as $line) {
+			if (preg_match('/([^\s]+)[\s]*([>=~]=)[\s]*([\d+\.?]+)$/', $line, $need) === 1) {
+				if (preg_match('/' . $need[1] . '==([\d+\.?]+)/', $packages, $install) === 1) {
+					if ($need[2] == '==' && $need[3] != $install[1]) {
+						return false;
+					} elseif (version_compare($need[3], $install[1], '>')) {
+						return false;
+					}
+				} else {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/*     * ---------------------- END DEPENDANCIES -------------------------------- */
 
 
 	/*     * ********************** NOTIF INSTALL MANAGEMENT *************************** */
@@ -1287,7 +1348,7 @@ class JeedomConnect extends eqLogic {
 				JCLog::error("Erreur détectée sur le dernier envoi de notification => " . json_encode($outputJson));
 			}
 		} else {
-			JCLog::error("L'envoi de la notification ne peut pas être vérifiée : " . $output);
+			JCLog::warning("L'envoi de la notification ne peut pas être vérifiée : >" . $output . "<");
 		}
 
 		if (is_null($output) || empty($output)) {
@@ -2003,7 +2064,9 @@ class JeedomConnect extends eqLogic {
 		$infoPlugin .= '<b>Version PHP</b> : ' . phpversion() . '<br/>';
 
 		list($tag,) = self::getNotifBinVersion();
-		$infoPlugin .= '<b>Bin</b> : ' . self::install_notif_info() . ' / ' . $tag . '<br/><br/>';
+		$infoPlugin .= '<b>Bin</b> : ' . self::install_notif_info() . ' / ' . $tag . '<br/>';
+		$dep = self::dependancy_info();
+		$infoPlugin .= '<b>Dépendances</b> : ' . ($dep['state'] ?? 'N/A') . '<br/><br/>';
 
 		$infoPlugin .= '<b>Equipements</b> : <br/>';
 

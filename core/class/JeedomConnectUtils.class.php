@@ -341,7 +341,7 @@ class JeedomConnectUtils {
         $linksData = json_decode(file_get_contents(JeedomConnect::$_plugin_info_dir . 'links.json'), true);
 
         foreach ($linksData as $key => $item) {
-            if ($item['id'] == 'donate' && file_exists(JeedomConnect::$_plugin_info_dir . 'partiallink')) {
+            if ((strpos($item['id'], 'donate') !== false) && file_exists(JeedomConnect::$_plugin_info_dir . 'partiallink')) {
                 unset($linksData[$key]);
                 continue;
             }
@@ -353,6 +353,9 @@ class JeedomConnectUtils {
             }
         }
 
+        usort($linksData, function ($a, $b) {
+            return $a['index'] <=> $b['index'];
+        });
         // JCLog::debug('result : ' .  json_encode($linksData));
 
         return $linksData;
@@ -992,7 +995,7 @@ class JeedomConnectUtils {
      *
      * @param string $dir
      * @param string $prefix
-     * @return void
+     * @return mixed
      */
     public static function scan_dir($dir, $prefix = null, $withTime = false) {
         $ignored = array('.', '..', '.htaccess');
@@ -1262,8 +1265,8 @@ class JeedomConnectUtils {
                 $startHist = date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . ' -' . config::byKey('historyCalculPeriod') . ' hour'));
                 $historyStatistique = $cmd->getStatistique($startHist, date('Y-m-d H:i:s'));
 
-                if ($historyStatistique['avg'] == 0 && $historyStatistique['min'] == 0 && $historyStatistique['max'] == 0) {
-                    $val = $cmd->execCmd();
+                $val = $cmd->execCmd();
+                if ($historyStatistique['avg'] == 0 && $historyStatistique['min'] == 0 && $historyStatistique['max'] == 0 && $val != '') {
                     $averageHistoryValue = round($val, 1);
                     $minHistoryValue = round($val, 1);
                     $maxHistoryValue = round($val, 1);
