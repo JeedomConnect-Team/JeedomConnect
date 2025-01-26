@@ -15,7 +15,7 @@ from multiprocessing import Process
 
 from resources.JeedomConnectd.jeedom.jeedom import jeedom_utils, jeedom_com, jeedom_socket, JEEDOM_SOCKET_MESSAGE
 
-from websocket_server import WebsocketServer, WebSocketHandler
+from websocket_server import WebsocketServer, WebSocketHandler, CLOSE_STATUS_NORMAL, DEFAULT_CLOSE_REASON
 from socketserver import TCPServer
 
 
@@ -312,7 +312,7 @@ class JCWebsocketServer(WebsocketServer):
         logger.debug(
             f"Closing connection client #{client['id']} from address: {client['address']}"
         )
-        client["handler"].send_close(self.CLOSE_STATUS_NORMAL, self.DEFAULT_CLOSE_REASON)
+        client["handler"].send_close(CLOSE_STATUS_NORMAL, DEFAULT_CLOSE_REASON)
         self._terminate_client_handler(client["handler"])
 
     def close_client_existing(self, eqApiKey):
