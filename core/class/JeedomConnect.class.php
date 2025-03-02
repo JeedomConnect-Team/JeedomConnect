@@ -372,12 +372,12 @@ class JeedomConnect extends eqLogic {
 
 		$sendNotifBin = self::getSendNotifBinPath();
 
-		$return = 'nok';
-		if (file_exists($sendNotifBin)) {
+		if (!file_exists($sendNotifBin)) {
 			JCLog::trace($sendNotifBin . ' not found ... ');
-			$return = 'ok';
+			return 'nok';
 		}
-		return $return;
+
+		return 'ok';
 	}
 
 	public static function backupExclude() {
