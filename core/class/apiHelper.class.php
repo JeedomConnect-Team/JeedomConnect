@@ -610,6 +610,10 @@ class apiHelper {
       return self::raiseException(__('L\'utilisateur n\'est pas actif', __FILE__));
     }
 
+    JCLog::debug('ClientIp => ' . network::getClientIp());
+    JCLog::debug('network => ' . network::getUserLocation());
+    JCLog::debug('localOnly => ' . $user->getOptions('localOnly', 0));
+
     if (network::getUserLocation() != 'internal' &&  $user->getOptions('localOnly', 0) == 1) {
       return self::raiseException(__('Connexion distante interdite', __FILE__));
     }
@@ -712,13 +716,17 @@ class apiHelper {
 
     $user = user::byId($eqLogic->getConfiguration('userId'));
     if ($user == null) {
-      $user = user::all()[0];
-      $eqLogic->setConfiguration('userId', $user->getId());
-      $eqLogic->save(true);
+      return self::raiseException(__('Aucun utilisateur configuré sur l\'appareil', __FILE__));
     }
 
     $userConnected = user::byHash($param['userHash']);
     if (!is_object($userConnected)) $userConnected = $user;
+
+    $testConnection = self::checkUser($param['userHash']);
+    // JCLog::debug("test connexion ==> " . json_encode($testConnection));
+    if ($testConnection['type'] == 'EXCEPTION') {
+      return $testConnection;
+    }
 
     $config = $eqLogic->getGeneratedConfigFile();
 
