@@ -34,6 +34,11 @@ class apiHelper {
 
     try {
       if (is_object($eqLogic) && !$eqLogic->getIsEnable()) {
+        if ($eqLogic->getConfiguration('platformOs') == 'android') {
+          JCLog::warning("Trying to erase data because equipment is disabled");
+          $eqLogic->sendNotif('eraseData', ['type' => 'ACTIONS', 'payload' => ['action' => 'eraseData']]);
+        }
+
         return array('type' => 'EQUIPMENT_DISABLE');
       }
 
@@ -683,6 +688,8 @@ class apiHelper {
 
     //check if eqLogic is enable
     if (!$eqLogic->getIsEnable()) {
+      JCLog::warning("trying to erase data");
+      $eqLogic->getCmd(null, 'eraseData')->execCmd(array('message' => 'erase'));
       JCLog::warning("Equipment " . $eqLogic->getName() . " is disabled");
       return array('type' => 'EQUIPMENT_DISABLE');
     }
