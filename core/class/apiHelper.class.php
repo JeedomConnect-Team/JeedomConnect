@@ -448,7 +448,7 @@ class apiHelper {
 
         case 'GET_INSTALL_DETAILS':
           $result = JeedomConnectUtils::getCommunityUrl();
-          return JeedomConnectUtils::addTypeInPayload(htmlentities($result), 'SET_INSTALL_DETAILS');
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_INSTALL_DETAILS');
           break;
 
         case 'SET_LOG':
