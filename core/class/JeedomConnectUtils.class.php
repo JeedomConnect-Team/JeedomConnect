@@ -370,8 +370,8 @@ class JeedomConnectUtils {
                 continue;
             }
 
-            if (in_array($item['id'], array('doc', 'changelog')) && $isBeta) {
-                $item['link'] .= "_beta";
+            if ($item['id'] == 'changelog') {
+                $item['link'] .=  $isBeta ? "beta" : "stable";
                 $linksData[$key] = $item;
                 continue;
             }

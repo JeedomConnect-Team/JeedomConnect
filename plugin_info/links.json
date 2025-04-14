@@ -4,14 +4,14 @@
         "index": 1,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/doc.webp",
         "title": "Documentation",
-        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index"
+        "link": "https://jeedomconnect-team.github.io/jc-doc/"
     },
     {
         "id": "changelog",
         "index": 2,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/listmodif.webp",
         "title": "Changelog",
-        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog"
+        "link": "https://jeedomconnect-team.github.io/jc-doc/docs/changelog/"
     },
     {
         "id": "git",
