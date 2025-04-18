@@ -9,3 +9,5 @@ resources/*/*/__pycache__
 
 .bash*
 .vscode/
+
+partiallink

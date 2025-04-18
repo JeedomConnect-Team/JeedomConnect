@@ -4,14 +4,14 @@
         "index": 1,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/doc.webp",
         "title": "Documentation",
-        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/index"
+        "link": "https://jeedomconnect-team.github.io/jc-doc/"
     },
     {
         "id": "changelog",
         "index": 2,
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/listmodif.webp",
         "title": "Changelog",
-        "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/changelog"
+        "link": "https://jeedomconnect-team.github.io/jc-doc/docs/changelog/"
     },
     {
         "id": "git",
@@ -47,5 +47,12 @@
         "img": "/var/www/html/plugins/JeedomConnect/docs/resources/copyright.webp",
         "title": "Licence",
         "link": "https://jeedomconnect-team.github.io/JeedomConnectDoc/fr_FR/license.html"
+    },
+    {
+        "id": "privacy",
+        "index": 8,
+        "img": "/var/www/html/plugins/JeedomConnect/docs/resources/privacy.png",
+        "title": "Privacy Policy",
+        "link": "http://jeedomconnect-team.github.io/JeedomConnectDoc/en_EN/privacy"
     }
 ]

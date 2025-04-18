@@ -592,24 +592,7 @@ try {
 
 	if (init('action') == 'createCommunityPost') {
 
-		$installDetail = JeedomConnectUtils::getInstallDetails(true);
-
-		/** @var plugin $plugin */
-		$plugin = plugin::byId('JeedomConnect');
-
-		$communitUrl = 'https://community.jeedom.com';
-		$ressource = '/new-topic?';
-
-		$data = array(
-			'category' => 'plugins/' . $plugin->getCategory(),
-			'tags' => 'plugin-' . $plugin->getId(),
-			'body' => $installDetail
-		);
-
-
-		$query = http_build_query($data);
-
-		$url = $communitUrl . $ressource . $query;
+		$url = JeedomConnectUtils::getCommunityUrl();
 		// JCLog::debug('url => ' . $url);
 
 		ajax::success(array('url' => $url));
