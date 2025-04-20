@@ -2721,13 +2721,13 @@ class apiHelper {
 
 
   //EXEC ACTIONS
-  private static function execCmd($id, $options = null) {
+  public static function execCmd($id, $_options = null) {
     $cmd = cmd::byId($id);
     if (!is_object($cmd)) {
       return self::raiseException("Can't find command [id=" . $id . "]");
     }
 
-    $options = array_merge($options ?? array(), array('comingFrom' => 'JeedomConnect'));
+    $options = array_merge($_options ?? array(), array('comingFrom' => 'JeedomConnect'));
     try {
 
       if (key_exists('user_id', $options)) {
@@ -2743,14 +2743,30 @@ class apiHelper {
         }
       }
 
-      $txtUser = '';
-      if (key_exists('user_login', $options)) {
-        $txtUser = ' par l\'utilisateur ' . $options['user_login'];
-        // $options['user_login'] = $options['user_login'] . ' via JC';
-      }
-      JCLog::info('Exécution de la commande ' . $cmd->getHumanName() . ' (' . $id . ')' . $txtUser);
+      $runNow =  true;
+      if (key_exists('schedule', $options)) {
+        if (!JeedomConnectUtils::isDateValid($options['schedule'])) {
+          return self::raiseException('La date de planification est invalide.');
+        }
 
-      $cmd->execCmd($options);
+        $scheduleTime = strtotime($options['schedule']);
+        $runNow =  ($scheduleTime <= strtotime('now'));
+      }
+
+      if ($runNow) {
+        $txtUser = '';
+        if (key_exists('user_login', $options)) {
+          $txtUser = ' par l\'utilisateur ' . $options['user_login'];
+          // $options['user_login'] = $options['user_login'] . ' via JC';
+        }
+        JCLog::info('Exécution de la commande ' . $cmd->getHumanName() . ' (' . $id . ')' . $txtUser);
+
+        $cmd->execCmd($options);
+      } else {
+        $_options['cmdId'] = $id;
+        $_options['txtdetail'] = cmd::byId($id)->getHumanName();
+        JeedomConnect::executeAsync('execCmdFomAsync', $_options, $options['schedule']);
+      }
     } catch (Exception $e) {
       JCLog::error($e->getMessage());
       return self::raiseException($e->getMessage());
