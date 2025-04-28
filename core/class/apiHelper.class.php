@@ -941,7 +941,7 @@ class apiHelper {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
       }
     }
-    JCLog::trace("conditionsArr " . json_encode($conditionsArr));
+    // JCLog::trace("conditionsArr " . json_encode($conditionsArr));
     foreach ($conditionsArr as $cond) {
       preg_match_all("/#([a-zA-Z0-9]*)#/", $cond, $matches);
       if (count($matches) > 0) {
