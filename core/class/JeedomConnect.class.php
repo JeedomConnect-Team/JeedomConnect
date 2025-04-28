@@ -1597,6 +1597,12 @@ class JeedomConnect extends eqLogic {
 		return $allEq;
 	}
 
+	public static function preConfig_latitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
+	public static function preConfig_longitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
 	/**
 	 * ensure userImgPath doesn't start with / and ends with /
 	 */
