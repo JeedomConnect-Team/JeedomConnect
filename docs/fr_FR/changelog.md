@@ -1,1 +1,3 @@
-Changelog JeedomConnect est disponible à cette adresse <https://jeedomconnect-team.github.io/jc-doc/docs/changelog/stable>
+# Changelog JeedomConnect
+
+Le changelog est disponible à cette adresse [sur la documentation](https://jeedomconnect-team.github.io/jc-doc/docs/changelog/stable)
