@@ -1597,6 +1597,12 @@ class JeedomConnect extends eqLogic {
 		return $allEq;
 	}
 
+	public static function preConfig_latitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
+	public static function preConfig_longitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
 	/**
 	 * ensure userImgPath doesn't start with / and ends with /
 	 */
@@ -1871,7 +1877,7 @@ class JeedomConnect extends eqLogic {
 		$pluginInfo = json_decode(file_get_contents(self::$_plugin_info_dir . 'version.json'), true);
 		$branchInfo = array(
 			"typeVersion" => JeedomConnectUtils::isBeta(true),
-			"enrollment" => "https://jared-94.github.io/JeedomConnectDoc/fr_FR/#qBeta"
+			"enrollment" => "https://jeedomconnect-team.github.io/jc-doc/docs/documentation/faq#qBeta"
 		);
 
 		$result = array_merge($pluginInfo, $branchInfo);
