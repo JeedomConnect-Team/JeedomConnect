@@ -24,6 +24,7 @@ require_once dirname(__FILE__) . '/JeedomConnectActions.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
+require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
 require_once dirname(__FILE__) . '/apiHelper.class.php';
 
 class JeedomConnect extends eqLogic {
@@ -1547,6 +1548,10 @@ class JeedomConnect extends eqLogic {
 			$this->setConfiguration('webviewEnabled', '1');
 			$save = true;
 		}
+		if ($this->getConfiguration('automationsEnabled') == '') {
+			$this->setConfiguration('automationsEnabled', '1');
+			$save = true;
+		}
 		if ($this->getConfiguration('editEnabled') == '') {
 			$this->setConfiguration('editEnabled', '1');
 			$save = true;
@@ -2142,6 +2147,10 @@ class JeedomConnect extends eqLogic {
 	public static function execCmdFomAsync($_options) {
 		JCLog::debug("Lancement d'une cmd plannifiée -- " . json_encode($_options));
 		apiHelper::execCmd($_options['cmdId'], $_options);
+	}
+
+	public static function jobExecutor($options) {
+		JeedomConnectAutomations::jobExecutor($options);
 	}
 
 

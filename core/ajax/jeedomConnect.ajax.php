@@ -452,6 +452,7 @@ try {
 			$eqLogic->setConfiguration('scenariosEnabled', $eqData['scenariosEnabled']);
 			$eqLogic->setConfiguration('timelineEnabled', $eqData['timelineEnabled']);
 			$eqLogic->setConfiguration('webviewEnabled', $eqData['webviewEnabled']);
+			$eqLogic->setConfiguration('automationsEnabled', $eqData['automationsEnabled']);
 			$eqLogic->setConfiguration('addAltitude', $eqData['addAltitude']);
 			$eqLogic->setConfiguration('displayPosition', $eqData['displayPosition']);
 			$eqLogic->setConfiguration('hideBattery', $eqData['hideBattery']);

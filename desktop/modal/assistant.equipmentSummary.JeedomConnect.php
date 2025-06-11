@@ -65,6 +65,10 @@ require_once dirname(__FILE__) . '/../../core/class/JeedomConnect.class.php';
         <a class="btn btn-success btn-xs jcMassAction" data-jcaction="checked" data-jctype="webviewEnabled" style="width:22px;"><i class="fas fa-check"></i></a>
         <a class="btn btn-danger btn-xs jcMassAction" data-jcaction="unchecked" data-jctype="webviewEnabled" style="width:22px;"><i class="fas fa-times"></i></a>
       </th>
+      <th data-sorter="checkbox" data-filter="false">{{WebView}}
+        <a class="btn btn-success btn-xs jcMassAction" data-jcaction="checked" data-jctype="automationsEnabled" style="width:22px;"><i class="fas fa-check"></i></a>
+        <a class="btn btn-danger btn-xs jcMassAction" data-jcaction="unchecked" data-jctype="automationsEnabled" style="width:22px;"><i class="fas fa-times"></i></a>
+      </th>
       <th data-sorter="checkbox" data-filter="false">{{Altitude}}
         <a class="btn btn-success btn-xs jcMassAction" data-jcaction="checked" data-jctype="addAltitude" style="width:22px;"><i class="fas fa-check"></i></a>
         <a class="btn btn-danger btn-xs jcMassAction" data-jcaction="unchecked" data-jctype="addAltitude" style="width:22px;"><i class="fas fa-times"></i></a>
@@ -146,6 +150,10 @@ require_once dirname(__FILE__) . '/../../core/class/JeedomConnect.class.php';
       // **********    webviewEnabled    ****************
       $webviewEnabled = $eqLogic->getConfiguration('webviewEnabled', false) ? 'checked' : '';
       $html .= '<td align="center" style="width:65px;"><input type="checkbox" class="objectAttr" ' . $webviewEnabled . ' data-l1key="webviewEnabled" /></td>';
+
+      // **********    automationsEnabled    ****************
+      $automationsEnabled = $eqLogic->getConfiguration('automationsEnabled', false) ? 'checked' : '';
+      $html .= '<td align="center" style="width:65px;"><input type="checkbox" class="objectAttr" ' . $automationsEnabled . ' data-l1key="automationsEnabled" /></td>';
 
       // **********    addAltitude    ****************
       $addAltitude = $eqLogic->getConfiguration('addAltitude', false) ? 'checked' : '';
