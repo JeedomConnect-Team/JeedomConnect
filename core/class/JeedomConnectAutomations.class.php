@@ -7,8 +7,7 @@ class JeedomConnectAutomations {
         $type = $trigger['type'];
         if ($type == "cron") {
             self::addCron($eqLogic, $automation);
-        }
-        if ($type == "event") {
+        } elseif ($type == "event") {
             self::addEvent($eqLogic, $automation);
         }
 
@@ -21,7 +20,7 @@ class JeedomConnectAutomations {
         $type = $trigger['type'];
         if ($type == "cron") {
             self::removeCron($eqLogic, $id);
-        } else {
+        } elseif ($type == "event") {
             self::removeListener($eqLogic, $id);
         }
 
@@ -30,12 +29,13 @@ class JeedomConnectAutomations {
 
     public static function getAutomations($eqLogic) {
         $crons = self::getAllCrons($eqLogic);
+        JCLog::debug('Get all crons for eqLogic ' . $eqLogic->getName() . ', found ' . count($crons) . ' crons : ' . json_encode($crons));
         $events = self::getAllListners($eqLogic);
+        JCLog::debug('Get all listeners for eqLogic ' . $eqLogic->getName() . ', found ' . count($events) . ' events : ' . json_encode($events));
         return array_merge($crons, $events);
     }
 
     // Cron functions
-
     private static function addCron($eqLogic, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
@@ -55,7 +55,7 @@ class JeedomConnectAutomations {
         $cron->setEnable(1);
         $cron->setDeamon(0);
         $cron->setSchedule($schedule);
-        $cron->setTimeout(15); // increase this value ?
+        $cron->setTimeout(5);
         $cron->save();
     }
 
@@ -67,12 +67,10 @@ class JeedomConnectAutomations {
     }
 
     private static function getCron($eqLogic, $id) {
-        foreach (cron::all() as $c) {
-            if ($c->getClass() == 'JeedomConnect' && $c->getFunction() == "jobExecutor") {
-                $options = $c->getOption();
-                if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
-                    return $c;
-                }
+        foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
+            $options = $c->getOption();
+            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
+                return $c;
             }
         }
         return null;
@@ -80,21 +78,16 @@ class JeedomConnectAutomations {
 
     private static function getAllCrons($eqLogic) {
         $res = array();
-        foreach (cron::all() as $c) {
-            if ($c->getClass() == 'JeedomConnect' && $c->getFunction() == "jobExecutor") {
-                $options = $c->getOption();
-                if ($options['eqLogicId'] == $eqLogic->getId()) {
-                    array_push($res, $options);
-                }
+        foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
+            $options = $c->getOption();
+            if ($options['eqLogicId'] == $eqLogic->getId()) {
+                array_push($res, $options);
             }
         }
         return $res;
     }
 
-
-
     // Event functions
-
     private static function addEvent($eqLogic, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
@@ -123,12 +116,10 @@ class JeedomConnectAutomations {
     }
 
     private static function getListener($eqLogic, $id) {
-        foreach (listener::all() as $listener) {
-            if ($listener->getClass() == 'JeedomConnect' && $listener->getFunction() == 'jobExecutor') {
-                $options = $listener->getOption();
-                if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
-                    return $listener;
-                }
+        foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
+            $options = $listener->getOption();
+            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
+                return $listener;
             }
         }
         return null;
@@ -136,12 +127,10 @@ class JeedomConnectAutomations {
 
     private static function getAllListners($eqLogic) {
         $res = array();
-        foreach (listener::all() as $listener) {
-            if ($listener->getClass() == 'JeedomConnect' && $listener->getFunction() == 'jobExecutor') {
-                $options = $listener->getOption();
-                if ($options['eqLogicId'] == $eqLogic->getId()) {
-                    array_push($res, $options);
-                }
+        foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
+            $options = $listener->getOption();
+            if ($options['eqLogicId'] == $eqLogic->getId()) {
+                array_push($res, $options);
             }
         }
         return $res;
@@ -163,7 +152,7 @@ class JeedomConnectAutomations {
 
         if ($trigger["type"] == "cron") {
             self::executeActions($options);
-        } else {
+        } elseif ($trigger["type"] == "event") {
             $event = $trigger["options"]["event"];
             $cmds = JeedomConnectUtils::getCmdIdFromText($event);
 
@@ -199,20 +188,20 @@ class JeedomConnectAutomations {
     }
 
     private static function executeActions($options) {
-        $trigger = $options['triggers'][0];
         $actions = $options["actions"];
-        $eqLogic = eqLogic::byId($options["eqLogicId"]);
 
         JCLog::debug('Execute actions ' . json_encode($actions));
         foreach ($actions as $action) {
-            if ($action["action"] == "cmd") {
-                apiHelper::execCmd($action["options"]['id'], $action['options'] ?? null);
-            }
-            if ($action["action"] == "scenario") {
-                apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
-            }
-            if ($action["action"] == "notif") {
-                // TODO : choose a notif cmd and execute it with a message related to the trigger
+            switch ($action["action"]) {
+                case 'cmd':
+                    apiHelper::execCmd($action["options"]['id'], $action['options'] ?? null);
+                    break;
+                case 'scenario':
+                    apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
+                    break;
+                case 'notif':
+                    // TODO : choose a notif cmd and execute it with a message related to the trigger
+                    break;
             }
         }
     }
