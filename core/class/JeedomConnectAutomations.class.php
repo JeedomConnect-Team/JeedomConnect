@@ -194,7 +194,7 @@ class JeedomConnectAutomations {
         foreach ($actions as $action) {
             switch ($action["action"]) {
                 case 'cmd':
-                    apiHelper::execCmd($action["options"]['id'], $action['options'] ?? null);
+                    apiHelper::execCmd($action["options"]['id'], $action['options']['options'] ?? null);
                     break;
                 case 'scenario':
                     apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
