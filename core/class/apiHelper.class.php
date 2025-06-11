@@ -534,6 +534,11 @@ class apiHelper {
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 
+        case 'REMOVE_ALL_AUTOMATIONS':
+          $result = JeedomConnectAutomations::removeAllAutomation($eqLogic);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
         case 'GET_AUTOMATIONS':
           $result = JeedomConnectAutomations::getAutomations($eqLogic);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');

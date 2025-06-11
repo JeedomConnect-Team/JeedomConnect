@@ -27,6 +27,23 @@ class JeedomConnectAutomations {
         return self::getAutomations($eqLogic);
     }
 
+    public static function removeAllAutomation($eqLogic) {
+        foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
+            $options = $c->getOption();
+            if ($options['eqLogicId'] == $eqLogic->getId()) {
+                $c->remove();
+            }
+        }
+
+        foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
+            $options = $listener->getOption();
+            if ($options['eqLogicId'] == $eqLogic->getId()) {
+                $listener->remove();
+            }
+        }
+        return self::getAutomations($eqLogic);
+    }
+
     public static function getAutomations($eqLogic) {
         $crons = self::getAllCrons($eqLogic);
         JCLog::debug('Get all crons for eqLogic ' . $eqLogic->getName() . ', found ' . count($crons) . ' crons : ' . json_encode($crons));
