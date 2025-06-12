@@ -178,6 +178,11 @@ class JeedomConnectAutomations {
     public static function jobExecutor($options) {
         JCLog::info('Execute job with options ' . json_encode($options));
 
+        if ($options["disabled"]) {
+            JCLog::info("Do not execute job cause automation is disabled");
+            return;
+        }
+
         $trigger = $options['triggers'][0];
 
         if ($trigger["type"] == "cron") {
