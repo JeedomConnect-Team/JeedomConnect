@@ -69,8 +69,12 @@ class JeedomConnectAutomations {
     private static function addCron($eqLogic, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
-        $once = $trigger["options"]["once"];
         $unique = $trigger["options"]["unique"];
+        $once = $trigger["options"]["once"];
+<<<<<<< HEAD
+        $unique = $trigger["options"]["unique"];
+=======
+>>>>>>> 0d6f17dbace141528128f8809d18b108fbd64fb2
         $schedule = $trigger["options"]["cron"];
 
         $automation["eqLogicId"] = $eqLogic->getId();
@@ -82,7 +86,11 @@ class JeedomConnectAutomations {
             $cron->setFunction('jobExecutor');
         }
         $cron->setOption($automation);
+<<<<<<< HEAD
         $cron->setOnce($once && $unique ? 1 : 0);
+=======
+        $cron->setOnce($unique && !$once ? 1 : 0);
+>>>>>>> 0d6f17dbace141528128f8809d18b108fbd64fb2
         $cron->setEnable(1);
         $cron->setDeamon(0);
         $cron->setSchedule($schedule);
