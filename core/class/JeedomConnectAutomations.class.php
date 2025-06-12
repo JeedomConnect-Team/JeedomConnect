@@ -242,16 +242,18 @@ class JeedomConnectAutomations {
                     $type = $trigger['type'];
                     $actions = $options['actions'];
 
-                    $msgNotif = 'Action(s) déclenchée(s) : ';
-                    foreach ($actions as $action) {
-                        if ($action['action'] == 'scenario') {
-                            $msgNotif .= 'scénario "' . $action['options']['name'] . '", ';
+                    if (count($actions) > 1) {
+                        $msgNotif = 'Action(s) déclenchée(s) : ';
+                        foreach ($actions as $action) {
+                            if ($action['action'] == 'scenario') {
+                                $msgNotif .= 'scénario "' . $action['options']['name'] . '", ';
+                            }
+                            if ($action['action'] == 'cmd') {
+                                $msgNotif .= 'commande ' . cmd::byId($action['options']['id'])->getHumanName() . ",";
+                            }
                         }
-                        if ($action['action'] == 'cmd') {
-                            $msgNotif .= 'commande ' . cmd::byId($action['options']['id'])->getHumanName() . ",";
-                        }
+                        $msgNotif = rtrim($msgNotif, ', ');
                     }
-                    $msgNotif = rtrim($msgNotif, ', ');
                     // JCLog::debug('Message for notification: ' . $msgNotif);
 
                     switch ($type) {
@@ -280,7 +282,8 @@ class JeedomConnectAutomations {
                             'notificationId' => round(microtime(true) * 10000)
                         )
                     );
-                    $eqLogic->sendNotif("defaultNotif", $data);
+                    $notifId = $action["options"]["id"] ?? 'defaultNotif';
+                    $eqLogic->sendNotif($notifId, $data);
                     break;
             }
         }
