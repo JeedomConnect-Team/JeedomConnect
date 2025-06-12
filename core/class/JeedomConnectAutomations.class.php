@@ -272,7 +272,7 @@ class JeedomConnectAutomations {
                             }
                             break;
                     }
-                    $message .= "<br><br>" . $msgNotif;
+                    $message .= !empty($msgNotif) ? "<br><br>$msgNotif" : '';
 
                     $title = "Programmation JeedomConnect";
 
