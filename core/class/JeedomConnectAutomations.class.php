@@ -236,7 +236,34 @@ class JeedomConnectAutomations {
                     apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
                     break;
                 case 'notif':
-                    // TODO : choose a notif cmd and execute it with a message related to the trigger
+                    $eqLogic = eqLogic::byId($options["eqLogicId"]);
+                    $trigger = $options['triggers'][0];
+                    $type = $trigger['type'];
+
+                    switch ($type) {
+                        case "cron":
+                            $message = "Evénement déclenché par la date et l'heure";
+                        case "event":
+                            $event = $trigger["options"]["event"];
+                            $triggerCmd = cmd::byId($options["event_id"]);
+                            if ($event == "#" . $options["event_id"] . "#") {
+                                $message = "La commande " . $triggerCmd->getHumanName() . " a changé d'état";
+                            } else {
+                                $message = "La condition " . jeedom::toHumanReadable($event) . " est vérifiée";
+                            }
+                    }
+
+                    $title = "Message de Jeedom";
+
+                    $data = array(
+                        'type' => 'DISPLAY_NOTIF',
+                        'payload' => array(
+                            'title' => $title,
+                            'message' => $message,
+                            'notificationId' => round(microtime(true) * 10000)
+                        )
+                    );
+                    $eqLogic->sendNotif("defaultNotif", $data);
                     break;
             }
         }
