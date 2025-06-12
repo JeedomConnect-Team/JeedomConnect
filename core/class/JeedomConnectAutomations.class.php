@@ -236,24 +236,40 @@ class JeedomConnectAutomations {
                     apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
                     break;
                 case 'notif':
+                    /** @var JeedomConnect  $eqLogic */
                     $eqLogic = eqLogic::byId($options["eqLogicId"]);
                     $trigger = $options['triggers'][0];
                     $type = $trigger['type'];
+                    $actions = $options['actions'];
+
+                    $msgNotif = 'Action(s) déclenchée(s) : ';
+                    foreach ($actions as $action) {
+                        if ($action['action'] == 'scenario') {
+                            $msgNotif .= 'scénario "' . $action['options']['name'] . '", ';
+                        }
+                        if ($action['action'] == 'cmd') {
+                            $msgNotif .= 'commande ' . cmd::byId($action['options']['id'])->getHumanName() . ",";
+                        }
+                    }
+                    $msgNotif = rtrim($msgNotif, ', ');
+                    // JCLog::debug('Message for notification: ' . $msgNotif);
 
                     switch ($type) {
                         case "cron":
-                            $message = "Evénement déclenché par la date et l'heure";
+                            $message = "L'heure de la programmation est arrivée.<br><br>" . $msgNotif;
+                            break;
                         case "event":
                             $event = $trigger["options"]["event"];
                             $triggerCmd = cmd::byId($options["event_id"]);
                             if ($event == "#" . $options["event_id"] . "#") {
-                                $message = "La commande " . $triggerCmd->getHumanName() . " a changé d'état";
+                                $message = "La commande " . $triggerCmd->getHumanName() . " a changé d'état.<br><br>" . $msgNotif;
                             } else {
-                                $message = "La condition " . jeedom::toHumanReadable($event) . " est vérifiée";
+                                $message = "La condition " . jeedom::toHumanReadable($event) . " est vérifiée.<br><br>" . $msgNotif;
                             }
+                            break;
                     }
 
-                    $title = "Message de Jeedom";
+                    $title = "Programmation JeedomConnect";
 
                     $data = array(
                         'type' => 'DISPLAY_NOTIF',
