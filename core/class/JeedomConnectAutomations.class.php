@@ -256,18 +256,19 @@ class JeedomConnectAutomations {
 
                     switch ($type) {
                         case "cron":
-                            $message = "L'heure de la programmation est arrivée.<br><br>" . $msgNotif;
+                            $message = "L'heure de la programmation est arrivée.";
                             break;
                         case "event":
                             $event = $trigger["options"]["event"];
                             $triggerCmd = cmd::byId($options["event_id"]);
                             if ($event == "#" . $options["event_id"] . "#") {
-                                $message = "La commande " . $triggerCmd->getHumanName() . " a changé d'état.<br><br>" . $msgNotif;
+                                $message = "La commande " . $triggerCmd->getHumanName() . " a changé d'état.";
                             } else {
-                                $message = "La condition " . jeedom::toHumanReadable($event) . " est vérifiée.<br><br>" . $msgNotif;
+                                $message = "La condition " . jeedom::toHumanReadable($event) . " est vérifiée.";
                             }
                             break;
                     }
+                    $message .= "<br><br>" . $msgNotif;
 
                     $title = "Programmation JeedomConnect";
 
