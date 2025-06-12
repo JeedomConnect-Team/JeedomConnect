@@ -5,6 +5,19 @@ class JeedomConnectAutomations {
     public static function addAutomation($eqLogic, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $type = $trigger['type'];
+        $id = $automation["id"];
+        $cron = self::getCron($eqLogic, $id);
+        $listener = self::getListener($eqLogic, $id);
+
+        // Automation trigger type has changed
+        if (is_object($cron) && $type == "event") {
+            self::removeCron($eqLogic, $id);
+        }
+        if (is_object($listener) && $type == "cron") {
+            self::removeListener($eqLogic, $id);
+        }
+
+
         if ($type == "cron") {
             self::addCron($eqLogic, $automation);
         } elseif ($type == "event") {
