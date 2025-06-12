@@ -84,11 +84,7 @@ class JeedomConnectAutomations {
             $cron->setFunction('jobExecutor');
         }
         $cron->setOption($automation);
-<<<<<<< HEAD
         $cron->setOnce($once && $unique ? 1 : 0);
-=======
-        $cron->setOnce($unique && !$once ? 1 : 0);
->>>>>>> 0d6f17dbace141528128f8809d18b108fbd64fb2
         $cron->setEnable(1);
         $cron->setDeamon(0);
         $cron->setSchedule($schedule);
