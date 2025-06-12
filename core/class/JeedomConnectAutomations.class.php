@@ -71,10 +71,8 @@ class JeedomConnectAutomations {
         $id = $automation["id"];
         $unique = $trigger["options"]["unique"];
         $once = $trigger["options"]["once"];
-<<<<<<< HEAD
         $unique = $trigger["options"]["unique"];
-=======
->>>>>>> 0d6f17dbace141528128f8809d18b108fbd64fb2
+
         $schedule = $trigger["options"]["cron"];
 
         $automation["eqLogicId"] = $eqLogic->getId();
