@@ -24,6 +24,8 @@ require_once dirname(__FILE__) . '/JeedomConnectActions.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
+require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
+
 
 class JeedomConnect extends eqLogic {
 
@@ -2141,6 +2143,9 @@ class JeedomConnect extends eqLogic {
 		return $infoPlugin;
 	}
 
+	public static function jobExecutor($options) {
+		JeedomConnectAutomations::jobExecutor($options);
+	}
 
 	/*
 	 ************************************************************************
