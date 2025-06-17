@@ -25,6 +25,7 @@ require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
+require_once dirname(__FILE__) . "/apiHelper.class.php";
 
 
 class JeedomConnect extends eqLogic {
