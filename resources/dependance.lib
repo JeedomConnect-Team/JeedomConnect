@@ -1,0 +1,466 @@
+#!/bin/bash
+
+TMPFOLDER=/tmp/jeedom/${PLUGIN}
+if [ -z $PROGRESS_FILENAME ]; then
+	PROGRESS_FILENAME=dependance
+fi
+PROGRESS_FILE=${TMPFOLDER}/${PROGRESS_FILENAME}
+HR=$(printf '=%.0s' {1..70})
+declare -A fix_handlers
+h=0 # no fix_handlers
+release=$(lsb_release -sc)
+
+LANG_DEP=${LANG_DEP:-${DEF_LANG:-"fr"}}
+if [ "$LANG_DEP" != "$DEF_LANG" ]; then
+	TRAD_FILE="${BASEDIR}/i18n/${LANG_DEP}.json"
+	mkdir -p $(dirname "$TRAD_FILE")
+	wget -4 https://raw.githubusercontent.com/NebzHB/dependance.lib/master/i18n/${LANG_DEP}.json --no-cache -O ${TRAD_FILE} &>/dev/null
+fi
+
+t() {
+	local key="$*"
+	if [ "$LANG_DEP" == "$DEF_LANG" ] || [ -z "$TRAD_FILE" ]; then
+		echo -n "$key"
+		return
+	fi
+
+	local script_name=$(basename "${BASH_SOURCE[1]}")
+	local translation=$(jq -r --arg k "$key" --arg s "$script_name" '.[$s][$k] // $k' "$TRAD_FILE" 2>/dev/null)
+	if [ $? -ne 0 ] || [ -z "$translation" ]; then
+		echo -n "$key"
+		return
+	fi
+	echo -n "$translation"
+}
+
+add_fix_handler() {
+	fix_handlers[$h,grepOrFunct]=$1
+	fix_handlers[$h,msgIfFound]=$2
+	fix_handlers[$h,fixStringOrFunct]=$3
+	((h++))
+}
+
+echo_success() {
+	echo -n "[  OK  ]"
+	[[ $1 != -*n* ]] && echo
+	return 0
+}
+
+echo_failure() {
+	echo -n "[ERROR]"
+	[[ $1 != -*n* ]] && echo
+	return 1
+}
+
+show_time() {
+	num=$1
+	min=0
+	if((num>59)); then
+		((sec=num%60))
+		((min=num/60))
+	else
+		((sec=num))
+	fi
+	ret="["
+	[[ $min -gt 0 ]] && ret+="$min:"
+	[[ $min -gt 0 ]] && ret+=$(printf "%02d" $sec)
+	[[ $min -lt 1 ]] && ret+="$sec"
+	[[ $min -lt 1 ]] && ret+="sec"
+	ret+="]"
+	[ "$2" != "noEndPoints" ] && ret+=" : "
+	echo -n "$ret"
+}
+
+# need to find a use for it...
+info() {
+	local EXIT_CODE=0
+	if [ "$1" != "echo" ]; then
+		echo "$@"
+	else
+		$@
+		local EXIT_CODE=$?
+	fi
+	return $EXIT_CODE
+}
+
+pre() {
+	[[ $TIMED -eq 1 ]] && startFull=`date +%s`
+	START_DATE=$(date +'%d/%m/%Y %H:%M:%S')
+	touch $TMPFOLDER/errorLog.$$
+	echo 0 > $TMPFOLDER/hasError.$$
+	touch $PROGRESS_FILE
+	STEP_IN_PROG=0
+	NUM_UPDATE=0
+	
+	# disable temporary deb-multimedia
+	if ls /etc/apt/sources.list.d/deb-multimedia.list* &>/dev/null; then
+		if [ ! -f "/etc/apt/sources.list.d/deb-multimedia.list.disabledBy${PLUGIN}" ]; then
+			if [ -f "/etc/apt/sources.list.d/deb-multimedia.list" ]; then
+				sudo mv /etc/apt/sources.list.d/deb-multimedia.list /etc/apt/sources.list.d/deb-multimedia.list.disabledBy${PLUGIN} &>/dev/null
+			fi
+		fi
+	fi
+
+	# remove repo.jeedom.com (validated by Alex)
+	if [ -f "/media/boot/multiboot/meson64_odroidc2.dtb.linux" ]; then
+		hasRepo=$(grep "repo.jeedom.com" /etc/apt/sources.list | wc -l)
+		if [ "$hasRepo" -ne "0" ]; then
+			sudo apt-add-repository -r "deb http://repo.jeedom.com/odroid/ stable main" &>/dev/null
+		fi
+	fi
+
+	# remove repo.distrib.works
+	DISTRIB_WORKS=`grep "repo.distrib.works" /etc/apt/sources.list`
+	if [[ $? -eq 0 ]]; then
+		reAddDistribWorks=1
+		sudo sed -i '/repo.distrib.works/d' /etc/apt/sources.list
+	else
+		reAddDistribWorks=0
+	fi
+
+	# install jq if not exists
+	if ! command -v jq &>/dev/null; then
+		sudo apt-get -o Acquire::ForceIPv4=true update &>/dev/null
+		sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::ForceIPv4=true install -y jq &>/dev/null
+	fi
+
+	echo "$HR"
+	echo "== ${START_DATE} == $(t "Installation des dépendances de") $PLUGIN"
+	echo "$HR"
+	echo
+}
+
+step() {
+	if [[ $STEP_IN_PROG -eq 1 ]]; then
+		STEP=$(($1-1))
+		next
+	fi
+	[[ $TIMED -eq 1 ]] && startStep=`date +%s`
+	echo $1 > $PROGRESS_FILE
+	STEP_IN_PROG=1
+	STEP=$1
+	shift
+	STEP_NAME=$@
+	if [[ $STEP -lt 10 ]]; then
+		echo -e "[  $STEP% ] : $STEP_NAME..."
+	else
+		echo -e "[ $STEP% ] : $STEP_NAME..."
+	fi 
+	STEP_OK=0
+	echo $STEP_OK > $TMPFOLDER/step.$$
+}
+
+subStep() {
+	# Default values if not defined
+	[ -n "${firstSubStep}" ] || firstSubStep=10
+	[ -n "${lastSubStep}" ] || lastSubStep=50
+	[ -n "${numSubStepMax}" ] || numSubStepMax=9
+	
+	# Compute pcIncrement only one time if necessary
+	if [ -z "${pcIncrement}" ]; then
+		pcIncrement=$(( (lastSubStep - firstSubStep) / (numSubStepMax - 1) ))
+		if (( pcIncrement < 2 )); then
+			echo "== [WARNING] $(t "Avertissement Développeur: L'incrément de pourcentage par étape") (${pcIncrement}%) $(t "est inférieur à 2%. Augmentez le range ou diminuez le nombre d'étapes.")"
+		fi
+	fi
+	
+	# Count how many time is called subStep in that sub script
+	if [ -z "${subStepCount}" ]; then
+		subStepCount=1
+	else
+		((subStepCount++))
+	fi
+
+	# Check if we don't call subStep more than numSubStepMax
+	if [ "$subStepCount" -gt "$numSubStepMax" ]; then
+		echo "== [WARNING] $(t "Avertissement Développeur: subStep appelée") $subStepCount $(t "fois, mais numSubStepMax est défini à") $numSubStepMax. $(t "Adaptez la valeur de numSubStepMax")"
+	fi
+	
+	# Init pcInprog, then increment on each call
+	if [ -z "${pcInProg}" ]; then
+		pcInProg=$firstSubStep
+	else
+		pcInProg=$((pcInProg + pcIncrement))
+		# don't go above lastSubStep
+		if [ "$pcInProg" -gt "$lastSubStep" ]; then
+			pcInProg=$lastSubStep
+		fi
+	fi
+	
+	# Call step with pcInprog and any other arguments sent to subStep
+	step "$pcInProg" "$@"
+}
+
+postSubScript() {
+	unset pcInProg
+	unset pcIncrement
+	unset firstSubStep
+	unset lastSubStep
+	unset numSubStepMax
+	unset subStepCount
+}
+
+
+try() {
+	cmdout="$("$@" 2>&1)"
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -ne 0 ]]; then
+		STEP_OK=$EXIT_CODE
+		echo $STEP_OK > $TMPFOLDER/step.$$
+		echo 1 > $TMPFOLDER/hasError.$$
+
+		local LINE=${BASH_LINENO[0]}
+		echo -e "== $(t "Erreur à l'étape") : $STEP_NAME" >> $TMPFOLDER/errorLog.$$
+		echo -e "== $(t "Ligne") $LINE" >> $TMPFOLDER/errorLog.$$
+		echo -e "== $(t "La commande") \`$*' $(t "pose problème")" >> $TMPFOLDER/errorLog.$$
+		echo -e "== $(t "Le code de retour est") $EXIT_CODE" >> $TMPFOLDER/errorLog.$$
+		echo -e "== $(t "Le message d'erreur") :" >> $TMPFOLDER/errorLog.$$
+		echo -e "$cmdout\n" >> $TMPFOLDER/errorLog.$$
+		echo -e "$HR" >> $TMPFOLDER/errorLog.$$
+	fi
+	return $EXIT_CODE
+}
+
+tryOrStop() {
+	try $@
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -ne 0 ]]; then
+		post
+		exit $EXIT_CODE
+	fi
+	return $EXIT_CODE
+}
+
+declare -a commented_sources
+comment_source() {
+	local file=$1
+	local src_error=$2
+	while IFS= read -r line; do
+		commented_sources+=("$file:$line")
+		echo "║ $(t "Source trouvée dans") $file, $(t "on la retire temporairement")"
+		sudo sed -i 's|.*'"$src_error"'.*|#&|' "$file"
+	done < <(grep "$src_error" "$file")
+}
+
+aptUpdate() {
+	MAX_UPDATE=3
+	[ -n "${NUM_UPDATE}" ] || NUM_UPDATE=0
+	NUM_UPDATE=$((NUM_UPDATE + 1))
+	aptOut=$(sudo apt-get -o Acquire::ForceIPv4=true update 2>&1)
+	local EXIT_CODE=$?
+
+	if [[ $EXIT_CODE -ne 0 ]]; then
+		APT_ERROR=$(echo "$aptOut" | grep -P "Err:")
+		if [ ! -z "$APT_ERROR" ]; then
+			APT_SRC_ERROR=$(echo $APT_ERROR | sed 's/.*http/http/g' | sed 's/ Release//g')
+			if ! echo "$APT_SRC_ERROR" | grep -Eq "($release main|$release-updates main)"; then
+				echo "╔ $(t "Problème détecté sur la source") : $APT_SRC_ERROR, $(t "correction en cours")..."
+				if grep -q "$APT_SRC_ERROR" "/etc/apt/sources.list"; then
+					comment_source "/etc/apt/sources.list" "$APT_SRC_ERROR"
+				else
+					for file in /etc/apt/sources.list.d/*.list; do
+						if grep -q "$APT_SRC_ERROR" "$file"; then
+							comment_source "$file" "$APT_SRC_ERROR"
+						fi
+					done
+				fi
+				
+				if [ "$NUM_UPDATE" -ge "$MAX_UPDATE" ]; then
+					echo "╚!!!!!  : $(t "Trop d'essais") ($NUM_UPDATE/$MAX_UPDATE), $("on sort avec erreur")"
+					post
+					exit $EXIT_CODE
+				else
+					echo "║ $(t "Relance de apt-get update")..."
+					aptUpdate
+					return $?
+				fi
+			else
+				echo "╚!!!!!  : $(t "Erreur sur une source principale de la distribution, impossible à corriger")"
+				post
+				exit $EXIT_CODE
+			fi
+		else
+			post
+			exit $EXIT_CODE
+		fi
+	else
+		# Restore commented lines if no error anymore
+	        for entry in "${commented_sources[@]}"; do
+			local file="${entry%%:*}"
+			local line="${entry#*:}"
+			echo "║ $(t "On réactive la source") $line"
+			sudo sed -i "s|#\($line\)|\1|" "$file"
+	        done
+
+		if [ "$NUM_UPDATE" -ge "2" ]; then
+			echo "║ $(t "Ouf ! apt-get update a bien fonctionné après") $NUM_UPDATE $(t "essais") !"
+			echo "╚ $(t "Cette étape s'est bien déroulée ici, mais attention, d'autres plugins peuvent avoir le problème avec cette source !")"
+		fi
+	        commented_sources=()
+		unset NUM_UPDATE
+		return 0
+	fi
+	return $EXIT_CODE
+}
+
+silent() {
+	"$@" &>/dev/null
+	return $?
+}
+
+next() {
+	echo $STEP > ${PROGRESS_FILE}
+	[[ -f $TMPFOLDER/step.$$ ]] && { STEP_OK=$(< $TMPFOLDER/step.$$); rm -f $TMPFOLDER/step.$$; }
+	if [[ $STEP -lt 10 ]]; then
+		echo -en "[  $STEP% ] : "
+	else
+		echo -en "[ $STEP% ] : "
+	fi 
+	echo -n "$STEP_NAME : "
+	[[ $TIMED -eq 1 ]] && show_time $((`date +%s`-$startStep))
+	if [[ $STEP_OK -eq 0 ]]; then
+		echo_success
+	else
+		echo_failure
+	fi
+
+	STEP_IN_PROG=0
+	return $STEP_OK
+}
+
+fixNO_PUBKEY() {
+	missing_keys=$(grep 'NO_PUBKEY' $TMPFOLDER/errorLog.$$ | sed -n 's/.*NO_PUBKEY \([^ ]*\).*/\1/p')
+
+	for key in $missing_keys; do
+		echo "== $(t "TROUVÉ") 'NO_PUBKEY $key' $(t "dans l'erreur, je lance une commande pour essayer de corriger (ignorez le warning), attendez 45sec et relancez les dépendances pour réessayer")"
+		echo "== $(t "Si ça ne fonctionne toujours pas, vous devrez résoudre le problème par vous même ou via le support")"
+		if [ "$key" == "93D6889F9F0E78D5" ] && [ ! -f "/media/boot/multiboot/meson64_odroidc2.dtb.linux" ]; then
+			sudo wget https://apt.armbian.com/armbian.key -O key
+			sudo gpg --dearmor < key | sudo tee /usr/share/keyrings/armbian.gpg > /dev/null
+			sudo chmod go+r /usr/share/keyrings/armbian.gpg
+			echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/armbian.gpg] http://apt.armbian.com $(lsb_release -cs) main  $(lsb_release -cs)-utils  $(lsb_release -cs)-desktop" | sudo tee /etc/apt/sources.list.d/armbian.list
+		else
+			sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "$key"
+		fi
+		HAS_FIX=1
+	done
+}
+
+fix () {
+	for (( f=0;f<h;f++ )); do # for each fix handler
+		if [ "$(type -t ${fix_handlers[$f,grepOrFunct]})" = "function" ]; then
+			${fix_handlers[$f,grepOrFunct]} "$TMPFOLDER/errorLog.$$"
+			SEARCH_RESULT=$?
+		else
+			grep "${fix_handlers[$f,grepOrFunct]}" $TMPFOLDER/errorLog.$$ &>/dev/null
+			SEARCH_RESULT=$?
+		fi
+		if [ "$SEARCH_RESULT" -eq 0 ];then
+			if [ "${fix_handlers[$f,msgIfFound]}" = "" ]; then
+				echo "== $(t "TROUVÉ") '${fix_handlers[$f,grepOrFunct]}' $(t "dans l'erreur, je lance une commande pour corriger, attendez 45sec et relancez les dépendances pour réessayer")"
+			else
+				if [ "${fix_handlers[$f,msgIfFound]:0:1}" = "*" ]; then
+					echo "== $(t "TROUVÉ") '${fix_handlers[$f,msgIfFound]:1}' $(t "dans l'erreur, je lance une commande pour corriger, attendez 45sec et relancez les dépendances pour réessayer")"
+				else
+					echo ${fix_handlers[$f,msgIfFound]}
+				fi
+			fi
+			if [ -n "${fix_handlers[$f,fixStringOrFunct]}" ]; then
+				if [ "$(type -t ${fix_handlers[$f,fixStringOrFunct]})" = "function" ]; then
+					${fix_handlers[$f,fixStringOrFunct]}
+				else
+					eval ${fix_handlers[$f,fixStringOrFunct]}
+				fi
+			fi
+			HAS_FIX=1
+		fi
+	done
+
+	fixNO_PUBKEY
+}
+
+post() {
+	# enable deb-multimedia
+	if [ -f /etc/apt/sources.list.d/deb-multimedia.list.disabledBy${PLUGIN} ]; then
+		sudo mv /etc/apt/sources.list.d/deb-multimedia.list.disabledBy${PLUGIN} /etc/apt/sources.list.d/deb-multimedia.list &>/dev/null
+	fi
+	if [[ $reAddDistribWorks -eq 1 ]]; then
+		sudo echo "$DISTRIB_WORKS" >> /etc/apt/sources.list
+	fi
+	if [[ ! -z $APT_LINE_ERROR ]]; then
+		sudo echo "$APT_LINE_ERROR" >> /etc/apt/sources.list
+	fi
+	if [[ $STEP_IN_PROG -eq 1 ]]; then
+		STEP=99
+		next
+	fi
+	echo 100 > ${PROGRESS_FILE}
+	echo "[100% ] : $(t "Terminé") !"
+
+	[[ -f $TMPFOLDER/hasError.$$ ]] && { hasError=$(< $TMPFOLDER/hasError.$$); rm -f $TMPFOLDER/hasError.$$; }
+	echo
+	if [[ $hasError -eq 1 ]]; then
+		echo "$HR"
+		echo -n "== KO == $(t "Erreur d'Installation") "
+		[[ $TIMED -eq 1 ]] && show_time $((`date +%s`-$startFull)) "noEndPoints"
+		echo
+		echo "$HR"
+		[[ -f $TMPFOLDER/errorLog.$$ ]] && {
+			HAS_FIX=0
+			echo "== $(t "ANALYSE DES LOGS")..."
+			
+			#try to fix if possible
+			fix
+
+			if [[ $HAS_FIX -eq 0 ]]; then
+				#show the error
+				echo "== $(t "AUCUNE ERREUR CONNUE DÉTECTÉE")"
+				cat $TMPFOLDER/errorLog.$$;
+			fi
+			rm -f $TMPFOLDER/errorLog.$$; 
+		}
+	else
+		echo "$HR"
+		echo -n "== OK == $(t "Installation Réussie") "
+		[[ $TIMED -eq 1 ]] && show_time $((`date +%s`-$startFull)) "noEndPoints"
+		echo
+		echo "$HR"
+	fi
+	rm -f ${PROGRESS_FILE}
+}
+
+# fix apt broken install
+add_fix_handler "apt --fix-broken install" "" "yes | sudo apt --fix-broken install"
+
+# fix dkpg error (probably stopped during apt install)
+add_fix_handler "sudo dpkg --configure -a" "*dpkg --configure -a" "sudo dpkg --configure -a --force-confdef"
+
+# if debian have changed the Suite value, allow releaseinfo change in apt-get
+add_fix_handler "changed its 'Suite' value from" "*changed its Suite value from" "sudo apt-get -o Acquire::ForceIPv4=true --allow-releaseinfo-change update"
+add_fix_handler "a modifié sa valeur « Suite » de" "*a modifié sa valeur suite de" "sudo apt-get -o Acquire::ForceIPv4=true --allow-releaseinfo-change update"
+
+
+# fix certificate chain issue oph.mdrjr.net
+fix_certif_chain_issue_mdrjr() {
+	sudo cp /etc/ca-certificates.conf /etc/ca-certificates.conf.orig
+	sudo sed -i s%mozilla/DST_Root_CA_X3.crt%!mozilla/DST_Root_CA_X3.crt%g /etc/ca-certificates.conf
+	sudo update-ca-certificates
+}
+add_fix_handler "Certificate verification failed: The certificate is NOT trusted. The certificate chain uses expired certificate.  Could not handshake: Error in the certificate verification. [IP: 216.155.132.189 443]" "*Error in the certificate verification on oph.mdrjr.net" fix_certif_chain_issue_mdrjr
+
+# fix armbian.com not available for buster anymore (same fix than the Atlas plugin does) :
+add_fix_handler "The repository 'http://apt.armbian.com buster Release' \(no longer has\|does not have\) a Release file." "" "sudo sed -i 's|^deb http://apt.armbian.com|#deb http://apt.armbian.com|g' /etc/apt/sources.list.d/armbian.list"
+add_fix_handler "Le dépôt http://apt.armbian.com buster Release ne contient plus de fichier Release." "" "sudo sed -i 's|^deb http://apt.armbian.com|#deb http://apt.armbian.com|g' /etc/apt/sources.list.d/armbian.list"
+
+# fix buster-backports not available anymore :
+fix_buster_backport_not_available() {
+	if [ -f /etc/apt/sources.list.d/buster-backports.list ]; then
+		sudo sed -i 's|^deb-src http://[a-zA-Z0-9.-]\+\.debian\.org/debian buster-backports|deb-src http://archive.debian.org/debian buster-backports|g' /etc/apt/sources.list.d/buster-backports.list
+		sudo sed -i 's|^deb http://[a-zA-Z0-9.-]\+\.debian\.org/debian buster-backports|deb http://archive.debian.org/debian buster-backports|g' /etc/apt/sources.list.d/buster-backports.list
+	else
+		sudo sed -i 's|^deb-src http://[a-zA-Z0-9.-]\+\.debian\.org/debian buster-backports|deb-src http://archive.debian.org/debian buster-backports|g' /etc/apt/sources.list
+		sudo sed -i 's|^deb http://[a-zA-Z0-9.-]\+\.debian\.org/debian buster-backports|deb http://archive.debian.org/debian buster-backports|g' /etc/apt/sources.list
+	fi
+}
+add_fix_handler "The repository 'http://[[:alnum:].-]\+\.debian\.org/debian buster-backports Release' \(no longer has\|does not have\) a Release file." "*The repository buster-backports no longer has/does not have a Release file." fix_buster_backport_not_available
+add_fix_handler "Le dépôt http://[[:alnum:].-]\+\.debian\.org/debian buster-backports Release ne contient plus de fichier Release." "*Le dépôt buster-backports ne contient plus de fichier Release." fix_buster_backport_not_available

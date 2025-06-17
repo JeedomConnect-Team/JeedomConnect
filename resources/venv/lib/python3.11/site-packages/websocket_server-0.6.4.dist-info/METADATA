@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: websocket-server
+Version: 0.6.4
+Summary: A simple fully working websocket-server in Python with no external dependencies
+Home-page: https://github.com/Pithikos/python-websocket-server
+Author: Johan Hanssen Seferidis
+Author-email: manossef@gmail.com
+License: MIT
+Platform: any
+Requires-Python: >=3.6
+License-File: LICENSE
+
+UNKNOWN
+

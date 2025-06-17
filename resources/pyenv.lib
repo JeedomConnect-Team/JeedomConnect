@@ -1,0 +1,231 @@
+#!/bin/bash
+
+PYENV_DIR=/opt/pyenv
+VENV_DIR=${BASE_DIR}/venv
+
+CURRENT_PYTHON_VERSION=$(python3 --version | awk -F'[ ]' '{print $2}')
+[[ -z "$CURRENT_PYTHON_VERSION" ]] && CURRENT_PYTHON_VERSION="0.0.0"
+
+TARGET_PYTHON_VERSION="3.9" #min version needed for this script, python 3.7 is not supported
+
+vercomp () {
+	if [[ $1 == $2 ]]
+	then
+		return 0
+	fi
+	local IFS=.
+	local i ver1=($1) ver2=($2)
+	# fill empty fields in ver1 with zeros
+	for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+	do
+		ver1[i]=0
+	done
+	for ((i=0; i<${#ver1[@]}; i++))
+	do
+		if [[ -z ${ver2[i]} ]]
+		then
+			# fill empty fields in ver2 with zeros
+			ver2[i]=0
+		fi
+		if ((10#${ver1[i]} > 10#${ver2[i]}))
+		then
+			return 1
+		fi
+		if ((10#${ver1[i]} < 10#${ver2[i]}))
+		then
+			return 2
+		fi
+	done
+	return 0
+}
+
+testPython3Version() {
+	vercomp ${CURRENT_PYTHON_VERSION} "0.0.0"
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -eq 0 ]]; then
+		echo "ERROR : Impossible to detect python3 version, is python3 installed?"
+		exit 1
+	fi
+}
+
+initPython3() {
+	apt-get install -y python3 python3-pip python3-dev python3-venv
+	testPython3Version
+}
+
+testMinTargetPythonVersion() {
+	vercomp $TARGET_PYTHON_VERSION "3.9"
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -gt 1 ]]; then
+		echo "ERROR : You cannot install a version of python lower than 3.9"
+		exit 1
+	fi
+}
+
+installPyEnv() {
+	echo "** Install PyEnv **"
+	curl https://pyenv.run | PYENV_ROOT="${PYENV_DIR}" bash
+}
+
+updatePyEnv() {
+	echo "** Update PyEnv **"
+	PYENV_ROOT="${PYENV_DIR}" ${PYENV_DIR}/bin/pyenv update
+}
+
+isPyEnvNeeded() {
+	testPython3Version
+	vercomp $CURRENT_PYTHON_VERSION $TARGET_PYTHON_VERSION
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -lt 2 ]]; then
+		echo "** PyEnv not required: $CURRENT_PYTHON_VERSION >= $TARGET_PYTHON_VERSION **"
+		return 0
+	else
+		echo "** PyEnv required: $CURRENT_PYTHON_VERSION < $TARGET_PYTHON_VERSION **"
+		return 1
+	fi
+}
+
+installOrUpdatePyEnv() {
+	# not include from original list: xz-utils libxml2-dev libxmlsec1-dev
+
+	# this is the list given by python.org
+	# https://devguide.python.org/getting-started/setup-building/#install-dependencies
+	apt-get install -y pkg-config build-essential gdb lcov pkg-config \
+		libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev \
+		libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev \
+		lzma lzma-dev tk-dev uuid-dev zlib1g-dev
+
+	if [ -v PYENV_ROOT ]; then
+		echo "** PYENV_ROOT (already set) :: ${PYENV_ROOT} **"
+	else
+		echo "** PYENV_ROOT (not set) :: OK **"
+	fi
+	if [ -d ${PYENV_DIR} ]; then
+		updatePyEnv
+	else
+		installPyEnv
+	fi
+
+	if [ ! -d ${PYENV_DIR} ]; then
+		echo "ERROR : Problem to install PyEnv"
+		exit 1
+	fi
+}
+
+installPython3WithPyEnv() {
+	testMinTargetPythonVersion
+
+	availableVersion=$(PYENV_ROOT="${PYENV_DIR}" ${PYENV_DIR}/bin/pyenv latest ${TARGET_PYTHON_VERSION} 2> /dev/null)
+	[[ -z "$availableVersion" ]] && availableVersion="0.0.0"
+
+	vercomp $availableVersion $TARGET_PYTHON_VERSION
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -gt 1 ]]; then
+		echo "Actually need to install a new version because $availableVersion<$TARGET_PYTHON_VERSION ..."
+		PYENV_ROOT="${PYENV_DIR}" ${PYENV_DIR}/bin/pyenv install -s ${TARGET_PYTHON_VERSION}
+	else
+		echo "current version is ok $availableVersion"
+	fi
+
+	pythonPath=$(getPython3Path)
+	installedVersion=$($pythonPath --version | awk -F'[ ]' '{print $2}')
+	[[ -z "$installedVersion" ]] && installedVersion="0.0.0"
+	vercomp $installedVersion $TARGET_PYTHON_VERSION
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -eq 2 ]]; then
+		echo "ERROR : Problem to install requested python version"
+		exit 1
+	fi
+}
+
+getPython3Path() {
+	testPython3Version
+	vercomp $CURRENT_PYTHON_VERSION $TARGET_PYTHON_VERSION
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -lt 2 ]]; then
+		echo "python3"
+	else
+		actualVersion=$(PYENV_ROOT="${PYENV_DIR}" ${PYENV_DIR}/bin/pyenv latest ${TARGET_PYTHON_VERSION} 2> /dev/null)
+		echo "${PYENV_DIR}/versions/$actualVersion/bin/python3"
+	fi
+}
+
+createVenv() {
+	if [ -z ${VENV_DIR} ]; then
+		echo "ERROR : Please declare variable VENV_DIR in your script. e.g. ´VENV_DIR=${BASE_DIR}/venv´"
+		exit 1
+	fi
+	pythonPath=$(getPython3Path)
+	echo "** use ${pythonPath} to setup ${VENV_DIR} **"
+
+	installedVersion=$($pythonPath --version | awk -F'[ ]' '{print $2}')
+	if [[ -z "$installedVersion" ]]; then
+		echo "ERROR : Could not get a python version matching $TARGET_PYTHON_VERSION"
+		exit 1
+	fi
+
+	pythonVersionInVenv=$(${VENV_DIR}/bin/python3 --version 2>/dev/null | awk -F'[ ]' '{print $2}')
+	[[ -z "$pythonVersionInVenv" ]] && pythonVersionInVenv="0.0.0"
+	if [[ $pythonVersionInVenv == $installedVersion ]]; then
+		echo "Python version in Venv is ok: $pythonVersionInVenv==$installedVersion"
+		$pythonPath -m venv --upgrade-deps ${VENV_DIR}
+	else
+		echo "Python version in Venv needs update: $pythonVersionInVenv!=$installedVersion"
+		$pythonPath -m venv --clear --upgrade-deps ${VENV_DIR}
+	fi
+	${VENV_DIR}/bin/python3 -m pip install --upgrade pip wheel
+}
+
+autoSetupVenv() {
+	# Default values if not defined
+	[ -n "${firstSubStep}" ] || firstSubStep=20
+	[ -n "${lastSubStep}" ] || lastSubStep=60
+	numSubStepMax=5
+
+	subStep "$(t "Initialisation de python3 et des prérequis")"
+	tryOrStop testMinTargetPythonVersion
+	tryOrStop initPython3
+
+	subStep "$(t "Initialisation de PyEnv")"
+	isPyEnvNeeded
+	local EXIT_CODE=$?
+	if [[ $EXIT_CODE -eq 1 ]]; then
+		subStep "$(t "Installation ou Mise à jour de PyEnv")"
+		tryOrStop installOrUpdatePyEnv
+
+		subStep "$(t "Install Python") $TARGET_PYTHON_VERSION $(t "avec PyEnv")"
+		tryOrStop installPython3WithPyEnv
+	fi
+	echo "** $(t "Chemin de python3"): $(getPython3Path) **"
+
+	subStep "$(t "Configuration de l'environnement virtuel")"
+	tryOrStop createVenv
+	echo "** $(t "Version de Python dans le Venv"):" $(${VENV_DIR}/bin/python3 --version)
+	postSubScript
+}
+
+launchInstall() {
+	pre
+	step 5 "$(t "Nettoyage APT")"
+	try apt-get clean
+	step 10 "$(t "Mise à jour APT")"
+	try apt-get update
+
+	if [[ ! -z "${APT_PACKAGES}" ]]; then
+		step 15 "$(t "Installation des paquets APT")"
+		tryOrStop apt-get install -y ${APT_PACKAGES}
+	fi
+
+	autoSetupVenv
+
+	step 70 "$(t "Installation des paquets python nécessaires")"
+	try ${VENV_DIR}/bin/python3 -m pip install --upgrade -r ${BASE_DIR}/requirements.txt
+
+	step 80 "$(t "Rétablissement des droits des dossiers et fichiers")"
+	chown -Rh www-data:www-data ${VENV_DIR}
+
+	step 90 "$(t "Résumé des paquets installés")"
+	${VENV_DIR}/bin/python3 -m pip freeze
+
+	post
+}

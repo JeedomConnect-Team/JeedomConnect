@@ -524,6 +524,26 @@ class apiHelper {
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CONTROL_DEVICES');
           break;
 
+        case 'ADD_AUTOMATION':
+          $result = JeedomConnectAutomations::addAutomation($eqLogic, $param['automation'] ?? null);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'REMOVE_AUTOMATION':
+          $result = JeedomConnectAutomations::removeAutomation($eqLogic, $param['automation'] ?? null);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'REMOVE_ALL_AUTOMATIONS':
+          $result = JeedomConnectAutomations::removeAllAutomation($eqLogic);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'GET_AUTOMATIONS':
+          $result = JeedomConnectAutomations::getAutomations($eqLogic);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
         default:
           return self::raiseException('[' . $type . '] - method not defined', $method);
           break;
@@ -803,6 +823,7 @@ class apiHelper {
       'notifsVersion' => $notifsConfig['idCounter'],
       'scenariosEnabled' => $eqLogic->getConfiguration('scenariosEnabled') == '1',
       'webviewEnabled' => $eqLogic->getConfiguration('webviewEnabled') == '1',
+      'automationsEnabled' => $eqLogic->getConfiguration('automationsEnabled') == '1',
       'editEnabled' => $userConnected->getProfils() == 'admin', //$eqLogic->getConfiguration('editEnabled') == '1',
       'getLogAllowed' => $userConnected->getProfils() == "admin",
       'pluginConfig' => self::getPluginConfig($eqLogic, false),
@@ -2827,7 +2848,7 @@ class apiHelper {
   }
 
   // MANAGE SC
-  private static function execSc($id, $options = null, $eqLogicId = null) {
+  public static function execSc($id, $options = null, $eqLogicId = null) {
     if ($options == null) $options = array();
 
     try {
@@ -2998,6 +3019,9 @@ class apiHelper {
    * @param JeedomConnect $eqLogic
    */
   private static function setDeviceInfos($eqLogic, $infos) {
+    if ($infos['event'] == "boot") {
+      $eqLogic->sendNotif("update_pref_app", array('type' => "ACTIONS", 'payload' => array('action' => "jcService", 'arg' => "ON")));
+    }
     if (isset($infos['batteryLevel'])) {
       self::saveBatteryEquipment($eqLogic, $infos['batteryLevel']);
     }
