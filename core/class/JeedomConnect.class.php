@@ -24,8 +24,6 @@ require_once dirname(__FILE__) . '/JeedomConnectActions.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
-require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
-require_once dirname(__FILE__) . '/apiHelper.class.php';
 
 class JeedomConnect extends eqLogic {
 
@@ -2141,55 +2139,6 @@ class JeedomConnect extends eqLogic {
 		}
 
 		return $infoPlugin;
-	}
-
-
-	public static function execCmdFomAsync($_options) {
-		JCLog::debug("Lancement d'une cmd plannifiée -- " . json_encode($_options));
-		apiHelper::execCmd($_options['cmdId'], $_options);
-	}
-
-	public static function jobExecutor($options) {
-		JeedomConnectAutomations::jobExecutor($options);
-	}
-
-
-
-	/**
-	 * Allow to perform a // task exec : now or later
-	 * from @Mips2648
-	 *
-	 * @param string $_method
-	 * @param array|null $_option
-	 * @param string $_date : 'Y-m-d H:i:s'
-	 * @return void
-	 */
-	public static function executeAsync(string $_method, $_option = null, $_date = 'now') {
-		if (!method_exists(__CLASS__, $_method)) {
-			throw new InvalidArgumentException("Method provided for executeAsync does not exist: {$_method}");
-		}
-
-		$cron = new cron();
-		$cron->setClass(__CLASS__);
-		$cron->setFunction($_method);
-		if (isset($_option)) {
-			$cron->setOption($_option);
-		}
-		$cron->setOnce(1);
-		$scheduleTime = strtotime($_date);
-		$cron->setSchedule(cron::convertDateToCron($scheduleTime));
-		$cron->save();
-		if ($scheduleTime <= strtotime('now')) {
-			$cron->run();
-			JCLog::debug("Task '{$_method}' executed now");
-		} else {
-			$details = $_option['txtdetail'] ?? '';
-			if ($details == '') {
-				JCLog::debug("Task '{$_method}' scheduled at {$_date}");
-			} else {
-				JCLog::debug("Exécution de {$details} programmée à {$_date}");
-			}
-		}
 	}
 
 

@@ -945,38 +945,6 @@ class JeedomConnectUtils {
         }
     }
 
-    public static function getAllAsyncCmdExec() {
-        try {
-            $crons = cron::searchClassAndFunction('JeedomConnect', 'execCmdFomAsync');
-
-            $result = array();
-            if (is_array($crons)) {
-                foreach ($crons as $cron) {
-                    $opt = $cron->getOption();
-
-                    $result[] = [
-                        'id' => $cron->getId(),
-                        'cmdId' => $opt['cmdId'] ?? null,
-                        'dueDate' => $cron->getNextRunDate()
-                    ];
-                }
-            }
-            JCLog::debug('execCmdFomAsync - cron details => ' . json_encode($result));
-
-            return $result;
-        } catch (Exception $e) {
-        }
-    }
-
-    public static function removeCronItem($id) {
-        try {
-            $cron = cron::byId($id);
-            JCLog::debug('removeCronItem - cron details => ' . json_encode(utils::o2a($cron)));
-            $cron->remove();
-        } catch (Exception $e) {
-        }
-    }
-
 
     /**
      * Return distance between 2 coordinates. If 2nd is not defined, by default get the one from JC, or if not defined the one from jeedom, or if not defined Paris
@@ -1446,13 +1414,6 @@ class JeedomConnectUtils {
         return $latest_filename;
     }
 
-
-    public static function isDateValid($date, $format = 'Y-m-d H:i') {
-        if ($date == '' or $date == null) return false;
-
-        $d = DateTime::createFromFormat($format, $date);
-        return $d && $d->format($format) === $date;
-    }
 
     /**
      * Copy the configuration file from equipement $from to one or several equipement $toArray
