@@ -2742,7 +2742,7 @@ class apiHelper {
 
 
   //EXEC ACTIONS
-  private static function execCmd($id, $options = null) {
+  public static function execCmd($id, $options = null) {
     $cmd = cmd::byId($id);
     if (!is_object($cmd)) {
       return self::raiseException("Can't find command [id=" . $id . "]");
