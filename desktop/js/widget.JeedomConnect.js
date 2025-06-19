@@ -1668,6 +1668,7 @@ $(".widgetMenu .saveWidget").click(function () {
             moreInfos.forEach(info => {
                 info.name = $("#" + info.id + "-name-input").val();
                 info.unit = $("#" + info.id + "-unit-input").val();
+                info.type = 'cmd';
                 delete info.human;
                 result.moreInfos.push(info);
             });
