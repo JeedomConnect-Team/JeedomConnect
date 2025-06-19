@@ -128,12 +128,12 @@ $listenerUL .= '<td>Actions</td>';
 $listenerUL .= '</tr>';
 foreach ($automations['events'] as $event) {
   $listenerUL .= '<tr>';
-  $listenerUL .= '<td data-type="listener" data-id="' . $event['id'] . '">';
+  $listenerUL .= '<td data-type="event" data-id="' . $event['id'] . '">';
   $listenerUL .= '<i class="fas fa-minus-circle"></i> ';
   $listenerUL .= '</td>';
 
   $listenerUL .= '<td>';
-  $listenerUL .= '<input type="checkbox" class="form-check-input" data-type="listener" data-id="' . $event['id'] . '"  ' . ((($event['disabled'] ?? false) == 0) ? 'checked' : '') . ' >';
+  $listenerUL .= '<input type="checkbox" class="form-check-input" data-type="event" data-id="' . $event['id'] . '"  ' . ((($event['disabled'] ?? false) == 0) ? 'checked' : '') . ' >';
   $listenerUL .= '</td>';
 
   $listenerUL .= '<td>';

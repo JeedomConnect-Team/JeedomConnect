@@ -34,7 +34,7 @@ class JeedomConnectAutomations {
             $options = $automation->getOption();
             $options["disabled"] = $status == 0 ? false : true;
             self::addCron($eqLogicId, $options);
-        } elseif ($type == "listener") {
+        } elseif ($type == "event") {
             $automation = self::getListener($eqLogicId, $id);
             $options = $automation->getOption();
             $options["disabled"] = $status == 0 ? false : true;
