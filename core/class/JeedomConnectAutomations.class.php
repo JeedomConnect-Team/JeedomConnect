@@ -2,71 +2,89 @@
 
 class JeedomConnectAutomations {
 
-    public static function addAutomation($eqLogic, $automation) {
+    public static function addAutomation($eqLogicId, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $type = $trigger['type'];
         $id = $automation["id"];
-        $cron = self::getCron($eqLogic, $id);
-        $listener = self::getListener($eqLogic, $id);
+        $cron = self::getCron($eqLogicId, $id);
+        $listener = self::getListener($eqLogicId, $id);
 
         // Automation trigger type has changed
         if (is_object($cron) && $type == "event") {
-            self::removeCron($eqLogic, $id);
+            self::removeCron($eqLogicId, $id);
         }
         if (is_object($listener) && $type == "cron") {
-            self::removeListener($eqLogic, $id);
+            self::removeListener($eqLogicId, $id);
         }
 
 
         if ($type == "cron") {
-            self::addCron($eqLogic, $automation);
+            self::addCron($eqLogicId, $automation);
         } elseif ($type == "event") {
-            self::addEvent($eqLogic, $automation);
+            self::addEvent($eqLogicId, $automation);
         }
 
-        return self::getAutomations($eqLogic);
+        return self::getAutomations($eqLogicId);
     }
 
-    public static function removeAutomation($eqLogic, $automation) {
-        $trigger = $automation['triggers'][0]; //only one trigger for the moment
-        $id = $automation["id"];
-        $type = $trigger['type'];
+    public static function setAutomationStatus($eqLogicId, $type, $id, $status) {
+
         if ($type == "cron") {
-            self::removeCron($eqLogic, $id);
-        } elseif ($type == "event") {
-            self::removeListener($eqLogic, $id);
+            $automation = self::getCron($eqLogicId, $id);
+            $options = $automation->getOption();
+            $options["disabled"] = $status == 0 ? false : true;
+            self::addCron($eqLogicId, $options);
+        } elseif ($type == "listener") {
+            $automation = self::getListener($eqLogicId, $id);
+            $options = $automation->getOption();
+            $options["disabled"] = $status == 0 ? false : true;
+            self::addEvent($eqLogicId, $options);
         }
 
-        return self::getAutomations($eqLogic);
+        return true;
     }
 
-    public static function removeAllAutomation($eqLogic) {
+    public static function removeAutomation($eqLogicId, $type, $id) {
+        if ($type == "cron") {
+            self::removeCron($eqLogicId, $id);
+        } elseif ($type == "event") {
+            self::removeListener($eqLogicId, $id);
+        }
+
+        return self::getAutomations($eqLogicId);
+    }
+
+    public static function removeAllAutomation($eqLogicId) {
         foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
             $options = $c->getOption();
-            if ($options['eqLogicId'] == $eqLogic->getId()) {
+            if ($options['eqLogicId'] == $eqLogicId) {
                 $c->remove();
             }
         }
 
         foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
             $options = $listener->getOption();
-            if ($options['eqLogicId'] == $eqLogic->getId()) {
+            if ($options['eqLogicId'] == $eqLogicId) {
                 $listener->remove();
             }
         }
-        return self::getAutomations($eqLogic);
+        return self::getAutomations($eqLogicId);
     }
 
-    public static function getAutomations($eqLogic) {
-        $crons = self::getAllCrons($eqLogic);
-        JCLog::debug('Get all crons for eqLogic ' . $eqLogic->getName() . ', found ' . count($crons) . ' crons : ' . json_encode($crons));
-        $events = self::getAllListners($eqLogic);
-        JCLog::debug('Get all listeners for eqLogic ' . $eqLogic->getName() . ', found ' . count($events) . ' events : ' . json_encode($events));
+    public static function getAutomations($eqLogicId, $withKey = false) {
+        $crons = self::getAllCrons($eqLogicId);
+        JCLog::debug('Get all crons for eqLogic ' . $eqLogicId . ', found ' . count($crons) . ' crons : ' . json_encode($crons));
+        $events = self::getAllListners($eqLogicId);
+        JCLog::debug('Get all listeners for eqLogic ' . $eqLogicId . ', found ' . count($events) . ' events : ' . json_encode($events));
+        if ($withKey) {
+            return array('crons' => $crons, 'events' => $events);
+        }
+
         return array_merge($crons, $events);
     }
 
     // Cron functions
-    private static function addCron($eqLogic, $automation) {
+    private static function addCron($eqLogicId, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
         $unique = $trigger["options"]["unique"];
@@ -75,9 +93,9 @@ class JeedomConnectAutomations {
 
         $schedule = $trigger["options"]["cron"];
 
-        $automation["eqLogicId"] = $eqLogic->getId();
+        $automation["eqLogicId"] = $eqLogicId;
 
-        $cron = self::getCron($eqLogic, $id);
+        $cron = self::getCron($eqLogicId, $id);
         if (!is_object($cron)) {
             $cron = new cron();
             $cron->setClass('JeedomConnect');
@@ -92,46 +110,46 @@ class JeedomConnectAutomations {
         $cron->save();
     }
 
-    private static function removeCron($eqLogic, $id) {
-        $cron = self::getCron($eqLogic, $id);
+    private static function removeCron($eqLogicId, $id) {
+        $cron = self::getCron($eqLogicId, $id);
         if (is_object($cron)) {
             $cron->remove();
         }
     }
 
-    private static function getCron($eqLogic, $id) {
+    private static function getCron($eqLogicId, $id) {
         foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
             $options = $c->getOption();
-            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
+            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogicId) {
                 return $c;
             }
         }
         return null;
     }
 
-    private static function getAllCrons($eqLogic) {
+    private static function getAllCrons($eqLogicId) {
         $res = array();
         foreach (cron::searchClassAndFunction('JeedomConnect', 'jobExecutor') as $c) {
             $options = $c->getOption();
-            if ($options['eqLogicId'] == $eqLogic->getId()) {
-                array_push($res, $options);
+            if ($options['eqLogicId'] == $eqLogicId) {
+                array_push($res, array_merge($options, array('jeedomId' => $c->getId())));
             }
         }
         return $res;
     }
 
     // Event functions
-    private static function addEvent($eqLogic, $automation) {
+    private static function addEvent($eqLogicId, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
         $event = $trigger["options"]["event"];
 
-        $automation["eqLogicId"] = $eqLogic->getId();
+        $automation["eqLogicId"] = $eqLogicId;
 
         $cmds = JeedomConnectUtils::getCmdIdFromText($event);
 
         if (count($cmds) > 0) {
-            $listener = self::getListener($eqLogic, $id);
+            $listener = self::getListener($eqLogicId, $id);
             if (!is_object($listener)) {
                 $listener = new listener();
                 $listener->setClass('JeedomConnect');
@@ -148,29 +166,29 @@ class JeedomConnectAutomations {
         }
     }
 
-    private static function getListener($eqLogic, $id) {
+    private static function getListener($eqLogicId, $id) {
         foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
             $options = $listener->getOption();
-            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogic->getId()) {
+            if ($options['id'] == $id && $options['eqLogicId'] == $eqLogicId) {
                 return $listener;
             }
         }
         return null;
     }
 
-    private static function getAllListners($eqLogic) {
+    private static function getAllListners($eqLogicId) {
         $res = array();
         foreach (listener::searchClassFunctionOption('JeedomConnect', 'jobExecutor') as $listener) {
             $options = $listener->getOption();
-            if ($options['eqLogicId'] == $eqLogic->getId()) {
-                array_push($res, $options);
+            if ($options['eqLogicId'] == $eqLogicId) {
+                array_push($res, array_merge($options, array('jeedomId' => $listener->getId())));
             }
         }
         return $res;
     }
 
-    private static function removeListener($eqLogic, $id) {
-        $listener = self::getListener($eqLogic, $id);
+    private static function removeListener($eqLogicId, $id) {
+        $listener = self::getListener($eqLogicId, $id);
         if (is_object($listener)) {
             $listener->remove();
         }

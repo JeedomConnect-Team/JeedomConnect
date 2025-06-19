@@ -999,6 +999,30 @@ try {
 		ajax::success();
 	}
 
+	if (init('action') == 'removeAllAutomations') {
+		$data = init('data');
+		// JCLog::debug('AJAX all automation remove data => ' . json_encode($data));
+		JeedomConnectAutomations::removeAllAutomation($data['eqLogicId']);
+		ajax::success();
+	}
+	if (init('action') == 'removeAutomation') {
+		$data = init('data');
+		// JCLog::debug('AJAX all automation remove data => ' . json_encode($data));
+		JeedomConnectAutomations::removeAutomation($data['eqLogicId'], $data['type'], $data['id']);
+		ajax::success();
+	}
+	if (init('action') == 'setAutomationStatus') {
+		$data = init('data');
+		JCLog::debug('AJAX setAutomationStatus data => ' . json_encode($data));
+		$type = $data['type'];
+		$eqLogicId = $data['eqLogicId'];
+		$id = $data['id'];
+		$status = $data['status'];
+
+		JeedomConnectAutomations::setAutomationStatus($eqLogicId, $type, $id, $status);
+		ajax::success();
+	}
+
 	if (init('action') == 'regenerateApiKey') {
 		$id = init('eqId');
 		$currentApiKey = init('apiKey');
@@ -1037,9 +1061,5 @@ try {
 
 	throw new Exception(__('Aucune méthode correspondante à : ', __FILE__) . init('action'));
 } catch (Exception $e) {
-	if (function_exists('displayException')) {
-		ajax::error(displayException($e), $e->getCode());
-	} else {
-		ajax::error($e->getMessage(), $e->getCode());
-	}
+	ajax::error($e->getMessage(), $e->getCode());
 }

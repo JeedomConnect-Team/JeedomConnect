@@ -1286,6 +1286,16 @@ $(".btnNotification").click(function (event) {
   openAssistantNotificationModal(id, event);
 });
 
+$("#seeProg-btn").click(function () {
+  openAssistantProgModal($('.eqLogicAttr[data-l1key=id]').value());
+});
+
+function openAssistantProgModal(id, event) {
+  if (event !== undefined) event.stopPropagation();
+  $('#md_modal').dialog({ title: "{{Visualiser les programmations}}" });
+  $('#md_modal').load('index.php?v=d&plugin=JeedomConnect&modal=prog.JeedomConnect&eqLogicId=' + id).dialog('open');
+}
+
 function openAssistantNotificationModal(id, event) {
   if (event !== undefined) event.stopPropagation();
   $('#md_modal').dialog({ title: "{{Configuration des notifications}}" });

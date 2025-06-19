@@ -525,22 +525,24 @@ class apiHelper {
           break;
 
         case 'ADD_AUTOMATION':
-          $result = JeedomConnectAutomations::addAutomation($eqLogic, $param['automation'] ?? null);
+          $result = JeedomConnectAutomations::addAutomation($eqLogic->getId(), $param['automation'] ?? null);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 
         case 'REMOVE_AUTOMATION':
-          $result = JeedomConnectAutomations::removeAutomation($eqLogic, $param['automation'] ?? null);
+          $type = $param['automation']['triggers'][0]['type'] ?? null;
+          $id = $param['automation']["id"] ?? null;
+          $result = JeedomConnectAutomations::removeAutomation($eqLogic->getId(), $type, $id);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 
         case 'REMOVE_ALL_AUTOMATIONS':
-          $result = JeedomConnectAutomations::removeAllAutomation($eqLogic);
+          $result = JeedomConnectAutomations::removeAllAutomation($eqLogic->getId());
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 
         case 'GET_AUTOMATIONS':
-          $result = JeedomConnectAutomations::getAutomations($eqLogic);
+          $result = JeedomConnectAutomations::getAutomations($eqLogic->getId());
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 

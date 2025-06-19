@@ -627,6 +627,7 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 								<label class="col-sm-3 control-label">{{Accès Programmations}}</label>
 								<div class="col-sm-7">
 									<input class="eqLogicAttr form-control" data-l1key="configuration" data-l2key="automationsEnabled" type="checkbox" placeholder="{{}}">
+									<a class="btn btn-primary" id="seeProg-btn"><i class="fas fa-search"></i> {{Voir}} </a>
 								</div>
 							</div>
 
