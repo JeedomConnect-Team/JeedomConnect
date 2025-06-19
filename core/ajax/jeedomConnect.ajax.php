@@ -1013,7 +1013,7 @@ try {
 	}
 	if (init('action') == 'setAutomationStatus') {
 		$data = init('data');
-		JCLog::debug('AJAX setAutomationStatus data => ' . json_encode($data));
+		// JCLog::debug('AJAX setAutomationStatus data => ' . json_encode($data));
 		$type = $data['type'];
 		$eqLogicId = $data['eqLogicId'];
 		$id = $data['id'];
