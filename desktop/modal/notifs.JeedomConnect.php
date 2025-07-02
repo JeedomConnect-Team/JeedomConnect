@@ -25,10 +25,6 @@ sendVarToJS('platformOs', $eqLogic->getConfiguration('platformOs'));
 $customPath = config::byKey('userImgPath', 'JeedomConnect');
 sendVarToJS('userImgPath', $customPath);
 
-$defaultProgNotif = config::byKey('defaultProgNotif', 'JeedomConnect', 'defaultNotif');
-// JCLog::debug('defaultProgNotif ==> ' . $defaultProgNotif);
-sendVarToJS('defaultProgNotif', $defaultProgNotif);
-
 include_file('desktop', 'notifs.JeedomConnect', 'js', 'JeedomConnect');
 include_file('desktop', 'assistant.JeedomConnect', 'css', 'JeedomConnect');
 include_file('desktop', 'md/css/materialdesignicons', 'css', 'JeedomConnect');
