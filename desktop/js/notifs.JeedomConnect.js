@@ -308,7 +308,7 @@ function refreshNotifsTabData() {
 
 function createElementNotifProg(item) {
 
-	var checked = defaultProgNotif == item.id ? 'checked' : '';
+	var checked = (notifData.defaultForAutomation || 'defaultNotif') == item.id ? 'checked' : '';
 	var itemHtml = `<div>
 		<input type="radio" id="${item.id}" name="prog" value="${item.name}" ${checked} />
 		<label for="${item.name}">${item.name}</label>

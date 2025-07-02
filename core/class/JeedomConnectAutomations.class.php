@@ -253,7 +253,8 @@ class JeedomConnectAutomations {
                     apiHelper::execCmd($action["options"]['id'], $action['options']['options'] ?? null);
                     break;
                 case 'scenario':
-                    apiHelper::execSc($action["options"]['scenario_id'], $action["options"]);
+                    $action['options']['tags'] = ($action['options']['tags'] ?? '') . ' eqId=' . $options['eqLogicId'];
+                    apiHelper::execSc($action["options"]['scenario_id'], $action["options"], $options['eqLogicId']);
                     break;
                 case 'notif':
                     /** @var JeedomConnect  $eqLogic */
