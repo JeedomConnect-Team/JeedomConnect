@@ -80,6 +80,7 @@ function getStringEvent($event) {
 $cronUL .= '<tr>';
 $cronUL .= '<td></td>';
 $cronUL .= '<td>Actif</td>';
+$cronUL .= '<td>Nom</td>';
 $cronUL .= '<td>Date</td>';
 $cronUL .= '<td>Actions</td>';
 $cronUL .= '</tr>';
@@ -92,6 +93,10 @@ foreach ($automations['crons'] as $cron) {
 
   $cronUL .= '<td>';
   $cronUL .= '<input type="checkbox" class="form-check-input" data-type="cron" data-id="' . $cron['id'] . '"  ' . ((($cron['disabled'] ?? false) == 0) ? 'checked' : '') . ' >';
+  $cronUL .= '</td>';
+
+  $cronUL .= '<td>';
+  $cronUL .= $cron['name'] ?? '';
   $cronUL .= '</td>';
 
   $cronUL .= '<td>';
@@ -123,6 +128,7 @@ foreach ($automations['crons'] as $cron) {
 $listenerUL .= '<tr>';
 $listenerUL .= '<td></td>';
 $listenerUL .= '<td>Actif</td>';
+$listenerUL .= '<td>Nom</td>';
 $listenerUL .= '<td>Déclencheur</td>';
 $listenerUL .= '<td>Actions</td>';
 $listenerUL .= '</tr>';
@@ -134,6 +140,10 @@ foreach ($automations['events'] as $event) {
 
   $listenerUL .= '<td>';
   $listenerUL .= '<input type="checkbox" class="form-check-input" data-type="event" data-id="' . $event['id'] . '"  ' . ((($event['disabled'] ?? false) == 0) ? 'checked' : '') . ' >';
+  $listenerUL .= '</td>';
+
+  $listenerUL .= '<td>';
+  $listenerUL .= $event['name'] ?? '';
   $listenerUL .= '</td>';
 
   $listenerUL .= '<td>';
