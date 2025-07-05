@@ -216,7 +216,7 @@ class JeedomConnectAutomations {
                 //cmd only, handle any event
                 self::executeActions($options);
                 if ($trigger["options"]["once"]) {
-                    self::removeListener(eqLogic::byId($options["eqLogicId"]), $options["id"]);
+                    self::removeListener($options["eqLogicId"], $options["id"]);
                 }
                 return;
             }
@@ -234,7 +234,7 @@ class JeedomConnectAutomations {
                 if ($conditionResult) {
                     self::executeActions($options);
                     if ($trigger["options"]["once"]) {
-                        self::removeListener(eqLogic::byId($options["eqLogicId"]), $options["id"]);
+                        self::removeListener($options["eqLogicId"], $options["id"]);
                     }
                 }
             } catch (ParseError  $e) {
