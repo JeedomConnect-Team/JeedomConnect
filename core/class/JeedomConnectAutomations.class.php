@@ -87,11 +87,21 @@ class JeedomConnectAutomations {
     private static function addCron($eqLogicId, $automation) {
         $trigger = $automation['triggers'][0]; //only one trigger for the moment
         $id = $automation["id"];
-        $unique = $trigger["options"]["unique"];
         $once = $trigger["options"]["once"];
         $unique = $trigger["options"]["unique"];
 
         $schedule = $trigger["options"]["cron"];
+        $fixedTime = $trigger["options"]["fixedTime"] / 1000;
+        if ($unique) {
+            $parts = explode(' ', $schedule);
+
+            if (count($parts) >= 5) {
+                $parts[4] = '*';
+                $schedule = implode(' ', $parts);
+            }
+
+            $schedule .= date(' Y', $fixedTime);
+        }
 
         $automation["eqLogicId"] = $eqLogicId;
 
