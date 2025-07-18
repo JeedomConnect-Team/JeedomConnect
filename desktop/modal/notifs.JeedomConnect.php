@@ -25,7 +25,6 @@ sendVarToJS('platformOs', $eqLogic->getConfiguration('platformOs'));
 $customPath = config::byKey('userImgPath', 'JeedomConnect');
 sendVarToJS('userImgPath', $customPath);
 
-
 include_file('desktop', 'notifs.JeedomConnect', 'js', 'JeedomConnect');
 include_file('desktop', 'assistant.JeedomConnect', 'css', 'JeedomConnect');
 include_file('desktop', 'md/css/materialdesignicons', 'css', 'JeedomConnect');
@@ -49,6 +48,7 @@ include_file('desktop', 'md/css/materialdesignicons', 'css', 'JeedomConnect');
         }
         ?>
         <button class="tablinks" data-link="notifsTab">Notifications</button>
+        <button class="tablinks" data-link="progTab">Programmation</button>
       </div>
     </div>
 
@@ -80,6 +80,15 @@ include_file('desktop', 'md/css/materialdesignicons', 'css', 'JeedomConnect');
             Vous pouvez ajouter des commandes de notification personalisées.
           </div>
           <img src="" />
+        </div>
+      </div>
+
+      <div id="progTab" class="tabcontent">
+        <div class="leftContent">
+          <h3>Notifications par défaut sur les programmations</h3>
+          <div class="description">La notification sélectionné sera proposée par défaut sur l'action "Me Notifier" des programmations</div>
+          <div id="progUL" class="tabsUL">
+          </div>
         </div>
       </div>
     </div>

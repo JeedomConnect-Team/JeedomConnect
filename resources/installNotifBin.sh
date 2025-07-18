@@ -19,8 +19,7 @@ echo "FILENAME=$2"
 DESTINATION_DIR=$3
 echo "DESTINATION_DIR=$3"
 
-# URL="https://github.com/jared-94/JeedomConnect/raw/testNotif/resources/$FILENAME"
-URL="https://github.com/jared-94/JeedomConnect/releases/download/$TAG/$FILENAME"
+URL="https://github.com/JeedomConnect-Team/JeedomConnect/releases/download/$TAG/$FILENAME"
 
 wget --spider $URL 2>/dev/null
 

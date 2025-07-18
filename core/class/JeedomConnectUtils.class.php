@@ -676,7 +676,7 @@ class JeedomConnectUtils {
             ($data['payload']['title'] == '[Jeedom] Message de test')
         ) {
             $data['payload']['title'] = '<span style="color: #4caf50;"><b>Message test</b></span> &#128576;';
-            $data['payload']['message'] = '&#127881; Tout est <span style="color: #ffffff; background-color: #9c27b0"><i>personnalisable</i></span> dans <a href="https://jared-94.github.io/JeedomConnectDoc/fr_FR/index">Jeedom Connect</a> ! &#127881;';
+            $data['payload']['message'] = '&#127881; Tout est <span style="color: #ffffff; background-color: #9c27b0"><i>personnalisable</i></span> dans <a href="https://jeedomconnect-team.github.io/jc-doc/docs/documentation/intro">Jeedom Connect</a> ! &#127881;';
             if (!isset($data['payload']['actions'])) {
                 $data['payload']['actions'] = array(
                     array(

@@ -24,6 +24,9 @@ require_once dirname(__FILE__) . '/JeedomConnectActions.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
+require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
+require_once dirname(__FILE__) . "/apiHelper.class.php";
+
 
 class JeedomConnect extends eqLogic {
 
@@ -1546,6 +1549,10 @@ class JeedomConnect extends eqLogic {
 			$this->setConfiguration('webviewEnabled', '1');
 			$save = true;
 		}
+		if ($this->getConfiguration('automationsEnabled') == '') {
+			$this->setConfiguration('automationsEnabled', '1');
+			$save = true;
+		}
 		if ($this->getConfiguration('editEnabled') == '') {
 			$this->setConfiguration('editEnabled', '1');
 			$save = true;
@@ -1596,6 +1603,12 @@ class JeedomConnect extends eqLogic {
 		return $allEq;
 	}
 
+	public static function preConfig_latitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
+	public static function preConfig_longitude($value) {
+		return preg_replace('/[^0-9.,]/', '', $value);
+	}
 	/**
 	 * ensure userImgPath doesn't start with / and ends with /
 	 */
@@ -1870,7 +1883,7 @@ class JeedomConnect extends eqLogic {
 		$pluginInfo = json_decode(file_get_contents(self::$_plugin_info_dir . 'version.json'), true);
 		$branchInfo = array(
 			"typeVersion" => JeedomConnectUtils::isBeta(true),
-			"enrollment" => "https://jared-94.github.io/JeedomConnectDoc/fr_FR/#qBeta"
+			"enrollment" => "https://jeedomconnect-team.github.io/jc-doc/docs/documentation/faq#qBeta"
 		);
 
 		$result = array_merge($pluginInfo, $branchInfo);
@@ -2131,6 +2144,9 @@ class JeedomConnect extends eqLogic {
 		return $infoPlugin;
 	}
 
+	public static function jobExecutor($options) {
+		JeedomConnectAutomations::jobExecutor($options);
+	}
 
 	/*
 	 ************************************************************************

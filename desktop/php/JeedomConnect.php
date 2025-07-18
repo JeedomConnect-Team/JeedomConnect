@@ -624,6 +624,14 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 							</div>
 
 							<div class="form-group">
+								<label class="col-sm-3 control-label">{{Accès Programmations}}</label>
+								<div class="col-sm-7">
+									<input class="eqLogicAttr form-control" data-l1key="configuration" data-l2key="automationsEnabled" type="checkbox" placeholder="{{}}">
+									<a class="btn btn-primary" id="seeProg-btn"><i class="fas fa-search"></i> {{Voir}} </a>
+								</div>
+							</div>
+
+							<div class="form-group">
 								<label class="col-sm-3 control-label">{{Masquer la batterie sur page Equipement Jeedom}}</label>
 								<div class="col-sm-7">
 									<input class="eqLogicAttr form-control" data-l1key="configuration" data-l2key="hideBattery" type="checkbox">

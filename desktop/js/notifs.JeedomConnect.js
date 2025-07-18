@@ -294,13 +294,30 @@ function refreshNotifsTabData() {
 		return s.index - t.index;
 	});
 	var items = [];
+	var itemsProg = [];
 	$.each(notifs, function (key, val) {
 		itemHtml = createElementNotifChannel(val);
 		items.push(itemHtml);
+		itemsProgHtml = createElementNotifProg(val);
+		itemsProg.push(itemsProgHtml);
 	});
 	$("#notifsUL").html(items.join(""));
+	$("#progUL").html(itemsProg.join(""));
 }
 
+
+function createElementNotifProg(item) {
+
+	var checked = (notifData.defaultForAutomation || 'defaultNotif') == item.id ? 'checked' : '';
+	var itemHtml = `<div>
+		<input type="radio" id="${item.id}" name="prog" value="${item.name}" ${checked} />
+		<label for="${item.name}">${item.name}</label>
+		</div>
+		`;
+
+	return itemHtml;
+
+}
 
 function createElementNotifChannel(item, type = 'notif', movable = true) {
 
@@ -348,10 +365,13 @@ function save() {
 
 	});
 
+	progNotifDefault = $('input[name="prog"]:checked').attr('id');
+
 	var notifDataFinal = {}
 	notifDataFinal.idCounter = idCounter
 	notifDataFinal.channels = channels
 	notifDataFinal.notifs = notifications
+	notifDataFinal.defaultForAutomation = progNotifDefault
 	console.log('notifDataFinal', notifDataFinal)
 
 
@@ -439,6 +459,9 @@ function addNotifModal() {
 		var newId = 'notif-' + idCounter
 		var newElt = createElementNotifChannel({ id: newId, name: newName });
 		$('#notifsUL').append(newElt);
+
+		itemsProgHtml = createElementNotifProg({ id: newId, name: newName });
+		$("#progUL").append(itemsProgHtml);
 
 		incrementIdCounter();
 		result['id'] = newId

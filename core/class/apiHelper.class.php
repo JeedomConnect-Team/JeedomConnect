@@ -524,6 +524,28 @@ class apiHelper {
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CONTROL_DEVICES');
           break;
 
+        case 'ADD_AUTOMATION':
+          $result = JeedomConnectAutomations::addAutomation($eqLogic->getId(), $param['automation'] ?? null);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'REMOVE_AUTOMATION':
+          $type = $param['automation']['triggers'][0]['type'] ?? null;
+          $id = $param['automation']["id"] ?? null;
+          $result = JeedomConnectAutomations::removeAutomation($eqLogic->getId(), $type, $id);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'REMOVE_ALL_AUTOMATIONS':
+          $result = JeedomConnectAutomations::removeAllAutomation($eqLogic->getId());
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
+        case 'GET_AUTOMATIONS':
+          $result = JeedomConnectAutomations::getAutomations($eqLogic->getId());
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
+          break;
+
         default:
           return self::raiseException('[' . $type . '] - method not defined', $method);
           break;
@@ -803,6 +825,7 @@ class apiHelper {
       'notifsVersion' => $notifsConfig['idCounter'],
       'scenariosEnabled' => $eqLogic->getConfiguration('scenariosEnabled') == '1',
       'webviewEnabled' => $eqLogic->getConfiguration('webviewEnabled') == '1',
+      'automationsEnabled' => $eqLogic->getConfiguration('automationsEnabled') == '1',
       'editEnabled' => $userConnected->getProfils() == 'admin', //$eqLogic->getConfiguration('editEnabled') == '1',
       'getLogAllowed' => $userConnected->getProfils() == "admin",
       'pluginConfig' => self::getPluginConfig($eqLogic, false),
@@ -941,7 +964,7 @@ class apiHelper {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
       }
     }
-    JCLog::trace("conditionsArr " . json_encode($conditionsArr));
+    // JCLog::trace("conditionsArr " . json_encode($conditionsArr));
     foreach ($conditionsArr as $cond) {
       preg_match_all("/#([a-zA-Z0-9]*)#/", $cond, $matches);
       if (count($matches) > 0) {
@@ -2721,7 +2744,7 @@ class apiHelper {
 
 
   //EXEC ACTIONS
-  private static function execCmd($id, $options = null) {
+  public static function execCmd($id, $options = null) {
     $cmd = cmd::byId($id);
     if (!is_object($cmd)) {
       return self::raiseException("Can't find command [id=" . $id . "]");
@@ -2811,7 +2834,7 @@ class apiHelper {
   }
 
   // MANAGE SC
-  private static function execSc($id, $options = null, $eqLogicId = null) {
+  public static function execSc($id, $options = null, $eqLogicId = null) {
     if ($options == null) $options = array();
 
     try {
@@ -2820,9 +2843,14 @@ class apiHelper {
         if (key_exists('user_id', $options)) {
           /** @var user $user */
           $user = user::byId($options['user_id']);
-          if (!$scenario->hasRight('x', $user)) {
-            JCLog::warning('/!\ scenario ' . $scenario->getHumanName() . " interdit pour l'utilisateur '" . $user->getLogin() . "' - droit limité");
-            return self::raiseException('Vous n\'avez pas le droit d\'exécuter ce scenario ' . $scenario->getHumanName());
+          if (is_object($user)) {
+            if (!$scenario->hasRight('x', $user)) {
+              JCLog::warning('/!\ scenario ' . $scenario->getHumanName() . " interdit pour l'utilisateur '" . $user->getLogin() . "' - droit limité");
+              return self::raiseException('Vous n\'avez pas le droit d\'exécuter ce scenario ' . $scenario->getHumanName());
+            }
+            if (!key_exists('user_login', $options)) {
+              $options['user_login'] = $user->getLogin();
+            }
           }
         }
 
@@ -2982,6 +3010,9 @@ class apiHelper {
    * @param JeedomConnect $eqLogic
    */
   private static function setDeviceInfos($eqLogic, $infos) {
+    if ($infos['event'] == "boot") {
+      $eqLogic->sendNotif("update_pref_app", array('type' => "ACTIONS", 'payload' => array('action' => "jcService", 'arg' => "ON")));
+    }
     if (isset($infos['batteryLevel'])) {
       self::saveBatteryEquipment($eqLogic, $infos['batteryLevel']);
     }
