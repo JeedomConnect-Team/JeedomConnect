@@ -11,3 +11,6 @@ resources/*/*/__pycache__
 .vscode/
 
 partiallink
+
+resources/venv
+resources/sendNotif
