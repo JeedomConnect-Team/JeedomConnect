@@ -103,6 +103,7 @@ function getData($url, $username, $pwd, $authent) {
 		JCLog::warning('Error taking snapshot => ' . $error);
 	}
 	curl_close($ch);
+	JCLog::debug('Snapshot sent - data size => ' . strlen($data));
 	return $data;
 }
 
