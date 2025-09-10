@@ -6,8 +6,13 @@ data/img/user_files/
 tests/
 
 resources/*/*/__pycache__
+resources/*/__pycache__
+resources/__pycache__
 
 .bash*
 .vscode/
 
 partiallink
+
+resources/venv
+resources/sendNotif

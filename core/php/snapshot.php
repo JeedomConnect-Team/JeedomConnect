@@ -99,10 +99,11 @@ function getData($url, $username, $pwd, $authent) {
 	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 	curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 	$data = curl_exec($ch);
-	if (curl_error($ch)) {
-		JCLog::debug('Error taking snapshot');
+	if ($error = curl_error($ch)) {
+		JCLog::warning('Error taking snapshot => ' . $error);
 	}
 	curl_close($ch);
+	JCLog::debug('Snapshot sent - data size => ' . strlen($data));
 	return $data;
 }
 
