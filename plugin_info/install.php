@@ -51,6 +51,7 @@ function JeedomConnect_update() {
 
   JeedomConnectUtils::installAndMigration();
   JeedomConnectUtils::addCronItems();
+  JeedomConnectUtils::checkAppVsPluginVersion();
   JeedomConnect::createMapEquipment();
 
   if (JeedomConnect::install_notif_info() == 'nok') {
