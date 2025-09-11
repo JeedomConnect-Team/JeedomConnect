@@ -1447,7 +1447,7 @@ class JeedomConnectUtils {
         foreach (JeedomConnect::getAllJCequipment() as $eqLogic) {
             $appTypeVersion = $eqLogic->getConfiguration('appTypeVersion');
             if ($appTypeVersion != '' && $appTypeVersion != $pluginVersion) {
-                JCLog::error('App version (' . $appTypeVersion . ') does not match plugin version (' . $pluginVersion . ') for equipment ' . $eqLogic->getName() . ' (' . $eqLogic->getId() . ')');
+                JCLog::error('La version applicative (' . $appTypeVersion . ') ne coïncide pas avec la version du plugin (' . $pluginVersion . ') pour l\'équipement ' . $eqLogic->getName() . ' (' . $eqLogic->getId() . ')');
                 $check = true;
             }
         }
