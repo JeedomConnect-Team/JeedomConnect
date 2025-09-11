@@ -1438,6 +1438,23 @@ class JeedomConnectUtils {
         return;
     }
 
+    public static function checkAppVsPluginVersion() {
+
+        $pluginVersion = self::isBeta(true); //'beta' or 'stable'
+
+        $check = false;
+
+        foreach (JeedomConnect::getAllJCequipment() as $eqLogic) {
+            $appTypeVersion = $eqLogic->getConfiguration('appTypeVersion');
+            if ($appTypeVersion != '' && $appTypeVersion != $pluginVersion) {
+                JCLog::error('App version (' . $appTypeVersion . ') does not match plugin version (' . $pluginVersion . ') for equipment ' . $eqLogic->getName() . ' (' . $eqLogic->getId() . ')');
+                $check = true;
+            }
+        }
+
+        return $check;
+    }
+
     public static function installAndMigration() {
 
         if (config::byKey('userImgPath',   'JeedomConnect') == '') {

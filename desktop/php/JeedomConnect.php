@@ -302,6 +302,17 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 			</div>
 		</div>
 
+
+		<?php
+		if (JeedomConnectUtils::checkAppVsPluginVersion()) {
+		?>
+			<div class="alert alert-danger" style="text-align:center;">
+				<i class="fas fa-skull-crossbones"></i>&nbsp;&nbsp;&nbsp;&nbsp;{{Attention non alignement entre la version de votre plugin et au moins l'un de vos équipement !}}&nbsp;&nbsp;&nbsp;&nbsp;<i class="fas fa-skull-crossbones"></i>
+			</div>
+		<?php
+		}
+		?>
+
 		<!--   PANEL DES EQUIPEMENTS  -->
 		<legend style="margin-top:10px"><i class="fas fa-mobile-alt fa-lg"></i> {{Mes appareils}}</legend>
 		<!-- Champ de recherche -->
