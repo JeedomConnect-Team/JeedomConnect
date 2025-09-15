@@ -2163,6 +2163,7 @@ class apiHelper {
             foreach ($value as $i => $info) {
               if (self::hasHistoricFunction($info['id'], $name) || self::hasHistoricFunction($info['id'], $subtitle)) {
                 $cmd = cmd::byId($info['id']);
+                if (!is_object($cmd)) continue;
                 $state = $cmd->getCache(array('valueDate', 'collectDate', 'value'));
                 array_push($result, array(
                   'name' => 'cmd::update',
