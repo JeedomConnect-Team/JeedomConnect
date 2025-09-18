@@ -96,6 +96,7 @@ class apiHelper {
           break;
 
         case 'SC_SET_ACTIVE':
+          if (!JeedomConnectUtils::getUserProfil($param['userHash'], true)) return self::raiseException('Vous devez être admin pour activer ou désactiver un scénario');
           self::setActiveSc($param['id'], $param['active']);
           return null;
           break;
