@@ -96,6 +96,7 @@ class apiHelper {
           break;
 
         case 'SC_SET_ACTIVE':
+          if (!JeedomConnectUtils::getUserProfil($param['userHash'], true)) return self::raiseException('Vous devez être admin pour activer ou désactiver un scénario');
           self::setActiveSc($param['id'], $param['active']);
           return null;
           break;
@@ -2165,6 +2166,7 @@ class apiHelper {
             foreach ($value as $i => $info) {
               if (self::hasHistoricFunction($info['id'], $name) || self::hasHistoricFunction($info['id'], $subtitle)) {
                 $cmd = cmd::byId($info['id']);
+                if (!is_object($cmd)) continue;
                 $state = $cmd->getCache(array('valueDate', 'collectDate', 'value'));
                 array_push($result, array(
                   'name' => 'cmd::update',

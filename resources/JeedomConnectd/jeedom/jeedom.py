@@ -72,18 +72,21 @@ class jeedom_com():
             else:
                 self._changes[key] = value
 
-    def send_change_immediate(self, change, logDebug=False):
-        Thread(target=self.__post_change, args=(change,logDebug,)).start()
+    def send_change_immediate(self, change, clientIp = None, logDebug=False):
+        Thread(target=self.__post_change, args=(change,clientIp, logDebug,)).start()
 
-    def __post_change(self, change, logDebug):
+    def __post_change(self, change, clientIp, logDebug):
         if logDebug:
             logging.debug("[DAEMON SEND] message:  %s" % (str(change),))
         else:
             logging.info("[DAEMON SEND] message:  %s" % (str(change),))
 
+        headers = {
+            'X-Real-IP': clientIp  # Remplace par l'adresse IP réelle que tu veux transmettre
+        }
         for i in range(self._retry):
             try:
-                r = requests.post(self._url + '?apikey=' + self._apikey, json=change, timeout=(0.5, 120), verify=False)
+                r = requests.post(self._url + '?apikey=' + self._apikey, json=change, timeout=(0.5, 120), verify=False, headers=headers)
                 if r.status_code == requests.codes.ok:
                     return True
                 else:

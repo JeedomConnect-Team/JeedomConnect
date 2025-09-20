@@ -2092,7 +2092,7 @@ class JeedomConnect extends eqLogic {
 			$versionAppTypeConfig = $eqLogic->getConfiguration('appTypeVersion');
 			$buildVersion = $eqLogic->getConfiguration('buildVersion');
 			$warn = ($versionAppTypeConfig != '' && $versionAppTypeConfig != $pluginType) ? ' <i class="fas fa-exclamation-triangle" style="color:red"></i> ' : '';
-			$buildVersionApp = ($pluginType == 'beta' && $buildVersion != '') ? ' (' . $buildVersion . ')' : '';
+			$buildVersionApp = ($buildVersion != '') ? ' (' . $buildVersion . ')' : '';
 			$versionApp = $versionAppConfig != '' ? 'v' . $versionAppConfig . $buildVersionApp . ' ' . $versionAppTypeConfig . $warn  : $versionAppConfig;
 
 			$connexionType = $eqLogic->getConfiguration('useWs') == '1' ? 'ws'  : '';
