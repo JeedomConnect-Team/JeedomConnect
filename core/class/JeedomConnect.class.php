@@ -2066,6 +2066,22 @@ class JeedomConnect extends eqLogic {
 		JCLog::debug('---- sendActiveControl end -->>> ' . json_encode($payload));
 	}
 
+	public function getUser() {
+		return user::byId($this->getConfiguration('userId'));
+	}
+
+	public function getUserProfile($isAdmin = false) {
+		$user = $this->getUser();
+		if (is_object($user)) {
+			if ($isAdmin) {
+				return $user->getProfils() == 'admin';
+			}
+
+			return $user->getProfils();
+		}
+		return '';
+	}
+
 	public static function getConfigForCommunity($str = true) {
 
 		$pluginType = JeedomConnectUtils::isBeta(true);

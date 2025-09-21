@@ -1455,21 +1455,6 @@ class JeedomConnectUtils {
         return $check;
     }
 
-    public static function getUserProfil($hash, $getAdmin = false) {
-
-        $user = user::byHash($hash);
-        if (!is_object($user)) {
-            if ($getAdmin) return false;
-            return null;
-        }
-
-        if ($getAdmin) {
-            return $user->getProfils() == 'admin';
-        }
-
-        return $user->getProfils();
-    }
-
     public static function installAndMigration() {
 
         if (config::byKey('userImgPath',   'JeedomConnect') == '') {
