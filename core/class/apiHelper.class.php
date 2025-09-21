@@ -96,7 +96,7 @@ class apiHelper {
           break;
 
         case 'SC_SET_ACTIVE':
-          if (!JeedomConnectUtils::getUserProfil($param['userHash'], true)) return self::raiseException('Vous devez être admin pour activer ou désactiver un scénario');
+          if (!$eqLogic->getUserProfile(true)) return self::raiseException('Vous devez être admin pour activer ou désactiver un scénario');
           self::setActiveSc($param['id'], $param['active']);
           return null;
           break;
@@ -774,7 +774,7 @@ class apiHelper {
     if (!array_key_exists('formatVersion', $config)) {
       $wrongFile = true;
       $newConfig = $eqLogic->restoreConfigFile();
-      if (array_key_exists('formatVersion', $newConfig)) {
+      if (!is_null($newConfig) && array_key_exists('formatVersion', $newConfig)) {
         $wrongFile = false;
       }
 
