@@ -3012,9 +3012,6 @@ class apiHelper {
    * @param JeedomConnect $eqLogic
    */
   private static function setDeviceInfos($eqLogic, $infos) {
-    if ($infos['event'] == "boot") {
-      $eqLogic->sendNotif("update_pref_app", array('type' => "ACTIONS", 'payload' => array('action' => "jcService", 'arg' => "ON")));
-    }
     if (isset($infos['batteryLevel'])) {
       self::saveBatteryEquipment($eqLogic, $infos['batteryLevel']);
     }
