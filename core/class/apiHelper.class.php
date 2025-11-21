@@ -547,6 +547,11 @@ class apiHelper {
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_AUTOMATIONS');
           break;
 
+        case 'RESET_BATERY':
+          $date = self::saveBatteryReset($param['eqId']);
+          return JeedomConnectUtils::addTypeInPayload($date, 'RESET_BATERY'); // self::getBatteries($param['eqId']);
+          break;
+
         default:
           return self::raiseException('[' . $type . '] - method not defined', $method);
           break;
@@ -2385,6 +2390,7 @@ class apiHelper {
       $level = 'warning';
     }
 
+    $result['eqId'] = $eqLogic->getId();
     $result['eqName'] = $eqLogic->getName();
     $result['roomName'] = $object_name;
     $result['roomId'] = strval($object_id) ?: null;
@@ -2411,6 +2417,20 @@ class apiHelper {
       $eqLogic->batteryStatus($level);
       //  JCLog::warning('saveBatteryEquipment | SAVING battery saved on equipment page ');
     }
+  }
+
+  /**
+   * @param int $eqLogicId
+   */
+  private static function saveBatteryReset($eqLogicId) {
+    $eqLogic = JeedomConnect::byId($eqLogicId);
+    if (!is_object($eqLogic)) {
+      return;
+    }
+    $date = date('Y-m-d H:i:s');
+    $eqLogic->setConfiguration('batterytime', $date);
+    $eqLogic->save(true);
+    return $date;
   }
 
 
