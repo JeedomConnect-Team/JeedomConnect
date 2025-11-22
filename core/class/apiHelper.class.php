@@ -548,8 +548,8 @@ class apiHelper {
           break;
 
         case 'RESET_BATERY':
-          $date = self::saveBatteryReset($param['eqId']);
-          return JeedomConnectUtils::addTypeInPayload($date, 'RESET_BATERY'); // self::getBatteries($param['eqId']);
+          self::saveBatteryReset($param['eqId']);
+          return self::getBatteries($param['eqId']);
           break;
 
         default:
