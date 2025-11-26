@@ -2894,7 +2894,10 @@ class apiHelper {
 
         $scenario->setTags($_tags);
 
-        $scenario_return = $scenario->launch('JeedomConnect', 'Lancement du scénario ' . $scenario->getHumanName() . ' (' . $id . ')' . $textUser);
+        $scenario->addTag('trigger', 'JeedomConnect');
+        $scenario->addTag('trigger_message', 'Lancement du scénario ' . $scenario->getHumanName() . ' (' . $id . ')' . $textUser);
+
+        $scenario_return = $scenario->launch();
 
         //if scenario returns a string, then display a toaster
         if (is_string($scenario_return)) {
