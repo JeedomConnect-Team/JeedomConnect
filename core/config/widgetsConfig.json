@@ -2099,6 +2099,7 @@
 					"name": "Modes",
 					"required": false,
 					"category": "cmdList",
+					"description": "Liste d'actions de type autre pour le choix du mode",
 					"options": {
 						"type": "action",
 						"subtype": "other",
@@ -2106,6 +2107,16 @@
 						"hasImage": true,
 						"hasName": false
 					},
+					"generic_type": "AC_SET_MODE"
+				},
+				{
+					"id": "modeSelect",
+					"name": "Choix de mode",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "select",
+					"description": "Action de type select pour le choix du mode",
 					"generic_type": "AC_SET_MODE"
 				},
 				{
@@ -2125,6 +2136,42 @@
 					"type": "action",
 					"description": "Action de type slider si info numérique ou texte si info select",
 					"generic_type": "AC_SET_FAN_MODE"
+				},
+				{
+					"id": "swingInfo",
+					"name": "Info Oscillation",
+					"required": false,
+					"category": "cmd",
+					"type": "info",
+					"subtype": "string",
+					"description": "Info texte qui donne l'oscillation verticale"
+				},
+				{
+					"id": "swingAction",
+					"name": "Oscillation",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "select",
+					"description": "Action de type select spour l'oscillation verticale"
+				},
+				{
+					"id": "horizontalSwingInfo",
+					"name": "Info Oscillation horizontale",
+					"required": false,
+					"category": "cmd",
+					"type": "info",
+					"subtype": "string",
+					"description": "Info texte qui donne l'oscillation horizontale"
+				},
+				{
+					"id": "horizontalSwingAction",
+					"name": "Oscillation horizontale",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "select",
+					"description": "Action de type select spour l'oscillation horizontale"
 				},
 				{
 					"id": "modeInCard",
