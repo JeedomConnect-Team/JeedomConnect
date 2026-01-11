@@ -1092,7 +1092,7 @@ class apiHelper {
           'object_id' => (string) $object->getId() ?: null,
           'keys' => array()
         );
-        foreach ($object->getConfiguration('summary') as $key => $value) {
+        foreach (($object->getConfiguration('summary') ?? []) as $key => $value) {
           $sum = $object->getSummary($key);
           array_push($object_info['keys'], array(
             $key => array('value' => $sum, 'cmds' => $value)
