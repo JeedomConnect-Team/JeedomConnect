@@ -1420,10 +1420,15 @@ $(".widgetMenu .saveWidget").click(function () {
         var listItems = (itemType == 'widget') ? widgetsList.widgets : widgetsList.components
         var widgetConfig = listItems.find(i => i.type == $("#widgetsList-select").val());
         // var widgetConfig = widgetsList.widgets.find(w => w.type == $("#widgetsList-select").val());
-        let infoCmd = moreInfos.slice();
+        let infoCmd = [];// moreInfos.slice();
 
         $('input[cmdType="info"]').each((i, el) => {
             infoCmd.push({ id: $("input[id=" + el.id + "]").attr('cmdid'), human: el.title });
+        });
+        $('#moreInfos-div .moreInfosItem').each((i, el) => {
+            const id = $(el).data('id');
+            const $input = $(el).find(`#${id}-input`);
+            infoCmd.push({ id, human: $input.attr('title') });
         });
 
         widgetConfig.options.forEach(option => {
