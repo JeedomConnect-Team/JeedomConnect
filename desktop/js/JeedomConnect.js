@@ -865,32 +865,28 @@ $('.eqLogicAction[data-action=gotoGenTypeConfig]').off('click').on('click', func
 // End Generic Types
 
 // Start Community Post
-async function createCommunityPost() {
-  var data = {
-    action: 'createCommunityPost'
-  }
-  var infoPlugin = await asyncAjaxGenericFunction(data);
-  // console.log('info plugin', infoPlugin);
-
-  var element = document.createElement('a');
-
-  element.setAttribute('href', infoPlugin.result.url);
-  element.setAttribute('target', '_blank');
-
-  element.style.display = 'none';
-  document.body.appendChild(element);
-
-  element.click();
-
-  document.body.removeChild(element);
-
-
-}
-
-$('.eqLogicAction[data-action=createCommunityPostJC]').off('click').on('click', function () {
-  createCommunityPost();
-})
-// End Community Post
+$('.eqLogicAction[data-action=createCommunityPostJC]').on('click', function (event) {
+  jeedom.plugin.createCommunityPost({
+    type: eqType,
+    error: function (error) {
+      domUtils.hideLoading()
+      jeedomUtils.showAlert({
+        message: error.message,
+        level: 'danger'
+      })
+    },
+    success: function (data) {
+      let element = document.createElement('a');
+      element.setAttribute('href', data.url);
+      element.setAttribute('target', '_blank');
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+  });
+  return;
+});
 
 
 $('.eqLogicAction[data-action=moreJcOptions]').off('click').on('click', function () {
