@@ -321,22 +321,24 @@ function setWidgetModalData(options) {
                 $("#icon-div-" + option.id).html(iconToHtml(options.widget[option.id]));
             } else if (option.category == "actionList") {
                 // console.log('setwidget, options', options);
-                options.widget.actions.forEach(item => {
-                    let type = item.action
-                    let index = item.index
-                    let html = getHtmlItem(type, { id: index, from: 'actionList', 'noSecurity': true, withBorder: true, move: true, remove: true });
-                    console.log('item actions ', item, index, type)
-                    $('#actionList-div').append(html);
+                if (Array.isArray(options.widget?.actions)) {
+                    options.widget.actions.forEach(item => {
+                        let type = item.action
+                        let index = item.index
+                        let html = getHtmlItem(type, { id: index, from: 'actionList', 'noSecurity': true, withBorder: true, move: true, remove: true });
+                        console.log('item actions ', item, index, type)
+                        $('#actionList-div').append(html);
 
-                    if (type == 'scenario') {
-                        $('#optionScenario-' + 'actionList-' + index).css('display', 'block');
-                    } else if (type == 'cmd') {
-                        item.options.name = '#' + item.options.id + '#'
-                    }
+                        if (type == 'scenario') {
+                            $('#optionScenario-' + 'actionList-' + index).css('display', 'block');
+                        } else if (type == 'cmd') {
+                            item.options.name = '#' + item.options.id + '#'
+                        }
 
-                    $('#actionList-div .actionList:last').setValues(item, '.actionListAttr');
+                        $('#actionList-div .actionList:last').setValues(item, '.actionListAttr');
 
-                });
+                    });
+                }
             } else if (option.category == "security") {
                 $('.jcSecurityDiv-' + option.id).setValues({ security: options.widget[option.id] }, '.jcItemAttr-' + option.id);
             }
