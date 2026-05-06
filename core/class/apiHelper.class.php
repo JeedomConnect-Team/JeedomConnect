@@ -47,11 +47,11 @@ class apiHelper {
           break;
 
         case 'CHECK_AUTHENT':
-          return self::checkAuthentication($param['login'] ?? '', $param['password'] ?? '');
+          return self::checkAuthentication($param['login'] ?? '', $param['password'] ?? '', ($eqLogic != null) ? $eqLogic->getName() : '');
           break;
 
         case 'CHECK_USER':
-          return self::checkUser($param['userHash'] ?? '');
+          return self::checkUser($param['userHash'] ?? '', ($eqLogic != null) ? $eqLogic->getName() : '');
           break;
 
         case 'VERIF_2FA':
@@ -586,9 +586,10 @@ class apiHelper {
    *
    * @param string $login
    * @param string $password
+   * @param string $eqName
    * @return array
    */
-  private static function checkAuthentication($login = '', $password = '') {
+  private static function checkAuthentication($login = '', $password = '', $eqName = '') {
     $returnType = 'SET_AUTHENT';
 
     $payload = array(
@@ -602,8 +603,9 @@ class apiHelper {
 
     $user = user::connect($login, $password);
 
+    $eqNameString = $eqName ? "sur l'appareil " . $eqName : "";
     if (!is_object($user)) {
-      return self::raiseException(__('Echec lors de l\'authentification', __FILE__));
+      return self::raiseException(__('Echec lors de l\'authentification ' . $eqNameString, __FILE__));
     }
 
     $payload['userHash'] = $user->getHash();
@@ -619,9 +621,10 @@ class apiHelper {
    *   - required a two factor authentication
    *
    * @param string $userHash
+   * @param string $eqName 
    * @return array
    */
-  private static function checkUser($userHash) {
+  private static function checkUser($userHash, $eqName = '') {
     $returnType = 'SET_CHECK_USER';
 
     $payload = array(
@@ -630,8 +633,10 @@ class apiHelper {
 
     $user = user::byHash($userHash);
 
+    $eqNameString = $eqName ? "sur l'appareil " . $eqName : "";
+
     if (!is_object($user)) {
-      return self::raiseException(__('Echec lors de l\'authentification', __FILE__));
+      return self::raiseException(__('Echec lors de l\'authentification ' . $eqNameString, __FILE__));
     }
 
     if ($user->getEnable() != 1) {
@@ -750,7 +755,7 @@ class apiHelper {
     $userConnected = user::byHash($param['userHash']);
     if (!is_object($userConnected)) $userConnected = $user;
 
-    $testConnection = self::checkUser($param['userHash']);
+    $testConnection = self::checkUser($param['userHash'], $eqLogic->getName());
     // JCLog::debug("test connexion ==> " . json_encode($testConnection));
     if ($testConnection['type'] == 'EXCEPTION') {
       return $testConnection;
