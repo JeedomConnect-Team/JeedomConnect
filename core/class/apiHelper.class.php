@@ -956,6 +956,14 @@ class apiHelper {
         if ($item == 'visibilityCond') {
           array_push($conditionsArr, $value);
         }
+        if ($item == 'badge') {
+          array_push($conditionsArr, $value["visibility"] ?? "");
+          if (is_array($value["colors"])) {
+            foreach ($value["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
 
@@ -968,11 +976,27 @@ class apiHelper {
     if (array_key_exists('tabs', $config['payload'])) {
       foreach ($config['payload']['tabs'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
+        if (isset($menu['badge'])) {
+          array_push($conditionsArr, $menu["visibility"] ?? "");
+          if (is_array($menu["colors"])) {
+            foreach ($menu["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
     if (array_key_exists('sections', $config['payload'])) {
       foreach ($config['payload']['sections'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
+        if (isset($menu['badge'])) {
+          array_push($conditionsArr, $menu["visibility"] ?? "");
+          if (is_array($menu["colors"])) {
+            foreach ($menu["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
     // JCLog::trace("conditionsArr " . json_encode($conditionsArr));
