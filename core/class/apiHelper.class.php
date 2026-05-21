@@ -939,7 +939,7 @@ class apiHelper {
   private static function getInfoCmdList($config) {
     $return = array();
     $conditionsArr = array();
-    foreach ($config['payload']['widgets'] as $widget) {
+    foreach (array_merge($config['payload']['widgets'], $config['payload']['customData']['widgets']) as $key => $widget) {
       foreach ($widget as $item => $value) {
         if (is_array($value)) {
           if (array_key_exists('type', $value)) {
