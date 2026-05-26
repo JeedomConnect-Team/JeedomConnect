@@ -43,6 +43,9 @@ if ($jsonrpc->getJsonrpc() != '2.0') {
   throw new Exception(__('Requête invalide. Version JSON-RPC invalide : ', __FILE__) . $jsonrpc->getJsonrpc(), -32001);
 }
 
+$skipLog = false;
+$isWsConnexion = false;
+
 try {
 
   $params = $jsonrpc->getParams();

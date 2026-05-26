@@ -591,14 +591,6 @@ try {
 		ajax::success(JeedomConnectUtils::getInstallDetails());
 	}
 
-	if (init('action') == 'createCommunityPost') {
-
-		$url = JeedomConnectUtils::getCommunityUrl();
-		// JCLog::debug('url => ' . $url);
-
-		ajax::success(array('url' => $url));
-	}
-
 	if (init('action') == 'humanReadableToCmd') {
 
 		$stringWithCmdId = cmd::humanReadableToCmd(init('human'));

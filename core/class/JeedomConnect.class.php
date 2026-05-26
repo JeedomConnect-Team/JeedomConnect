@@ -785,7 +785,7 @@ class JeedomConnect extends eqLogic {
 
 		$final = array();
 		foreach ($allCustomData as $item) {
-			if (!key_exists('widgetId', $item['value'])) {
+			if ($item['value'] == "" || !is_array($item['value']) || !key_exists('widgetId', $item['value'])) {
 				JCLog::warning('no widgetId found - skip - ' . json_encode($item));
 				continue;
 			}
@@ -1446,6 +1446,8 @@ class JeedomConnect extends eqLogic {
 
 	public function setGeofencesByCoordinates($lat, $lgt, $timestamp) {
 		JCLog::debug("[setGeofencesByCoordinates] " . $lat . ' -- ' . $lgt);
+
+		$zoneFound = null;
 		// foreach (cmd::byEqLogicId($this->getId()) as $cmd) {
 		foreach ($this->getCmd('info') as $cmd) {
 			if (strpos(strtolower($cmd->getLogicalId()), 'geofence') !== false) {
@@ -1454,6 +1456,8 @@ class JeedomConnect extends eqLogic {
 				JCLog::trace("  -- testing " . $cmd->getName() . ' --> distance = ' . $dist . ' // radius : ' . $radius);
 				if ($dist < $radius) {
 					JCLog::trace("  ---- dist lower than radius - entering the area");
+					$zoneFound = $cmd->getName();
+					JCLog::debug("Zone found : " . $zoneFound);
 					if ($cmd->execCmd() != 1) {
 						JCLog::debug("Set 1 for geofence " . $cmd->getName());
 						$cmd->event(1, date('Y-m-d H:i:s', $timestamp));
@@ -1466,6 +1470,11 @@ class JeedomConnect extends eqLogic {
 					}
 				}
 			}
+		}
+
+		$zoneTxt = cmd::byEqLogicIdAndLogicalId($this->getId(), 'currentGeolocTxt');
+		if (is_object($zoneTxt)) {
+			!is_null($zoneFound) ? $zoneTxt->event($zoneFound) : $zoneTxt->event(__('Hors zone', __FILE__));
 		}
 
 		$distToDefault = JeedomConnectUtils::getDistance($lat, $lgt);
