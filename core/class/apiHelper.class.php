@@ -47,11 +47,11 @@ class apiHelper {
           break;
 
         case 'CHECK_AUTHENT':
-          return self::checkAuthentication($param['login'] ?? '', $param['password'] ?? '');
+          return self::checkAuthentication($param['login'] ?? '', $param['password'] ?? '', ($eqLogic != null) ? $eqLogic->getName() : '');
           break;
 
         case 'CHECK_USER':
-          return self::checkUser($param['userHash'] ?? '');
+          return self::checkUser($param['userHash'] ?? '', ($eqLogic != null) ? $eqLogic->getName() : '');
           break;
 
         case 'VERIF_2FA':
@@ -586,9 +586,10 @@ class apiHelper {
    *
    * @param string $login
    * @param string $password
+   * @param string $eqName
    * @return array
    */
-  private static function checkAuthentication($login = '', $password = '') {
+  private static function checkAuthentication($login = '', $password = '', $eqName = '') {
     $returnType = 'SET_AUTHENT';
 
     $payload = array(
@@ -602,8 +603,9 @@ class apiHelper {
 
     $user = user::connect($login, $password);
 
+    $eqNameString = $eqName ? "sur l'appareil " . $eqName : "";
     if (!is_object($user)) {
-      return self::raiseException(__('Echec lors de l\'authentification', __FILE__));
+      return self::raiseException(__('Echec lors de l\'authentification ' . $eqNameString, __FILE__));
     }
 
     $payload['userHash'] = $user->getHash();
@@ -619,9 +621,10 @@ class apiHelper {
    *   - required a two factor authentication
    *
    * @param string $userHash
+   * @param string $eqName 
    * @return array
    */
-  private static function checkUser($userHash) {
+  private static function checkUser($userHash, $eqName = '') {
     $returnType = 'SET_CHECK_USER';
 
     $payload = array(
@@ -630,8 +633,10 @@ class apiHelper {
 
     $user = user::byHash($userHash);
 
+    $eqNameString = $eqName ? "sur l'appareil " . $eqName : "";
+
     if (!is_object($user)) {
-      return self::raiseException(__('Echec lors de l\'authentification', __FILE__));
+      return self::raiseException(__('Echec lors de l\'authentification ' . $eqNameString, __FILE__));
     }
 
     if ($user->getEnable() != 1) {
@@ -753,7 +758,7 @@ class apiHelper {
     $userConnected = user::byHash($param['userHash']);
     if (!is_object($userConnected)) $userConnected = $user;
 
-    $testConnection = self::checkUser($param['userHash']);
+    $testConnection = self::checkUser($param['userHash'], $eqLogic->getName());
     // JCLog::debug("test connexion ==> " . json_encode($testConnection));
     if ($testConnection['type'] == 'EXCEPTION') {
       return $testConnection;
@@ -937,7 +942,7 @@ class apiHelper {
   private static function getInfoCmdList($config) {
     $return = array();
     $conditionsArr = array();
-    foreach ($config['payload']['widgets'] as $widget) {
+    foreach (array_merge($config['payload']['widgets'], $config['payload']['customData']['widgets']) as $key => $widget) {
       foreach ($widget as $item => $value) {
         if (is_array($value)) {
           if (array_key_exists('type', $value)) {
@@ -954,6 +959,14 @@ class apiHelper {
         if ($item == 'visibilityCond') {
           array_push($conditionsArr, $value);
         }
+        if ($item == 'badge') {
+          array_push($conditionsArr, $value["visibility"] ?? "");
+          if (is_array($value["colors"])) {
+            foreach ($value["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
 
@@ -966,11 +979,27 @@ class apiHelper {
     if (array_key_exists('tabs', $config['payload'])) {
       foreach ($config['payload']['tabs'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
+        if (isset($menu['badge'])) {
+          array_push($conditionsArr, $menu["visibility"] ?? "");
+          if (is_array($menu["colors"])) {
+            foreach ($menu["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
     if (array_key_exists('sections', $config['payload'])) {
       foreach ($config['payload']['sections'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
+        if (isset($menu['badge'])) {
+          array_push($conditionsArr, $menu["visibility"] ?? "");
+          if (is_array($menu["colors"])) {
+            foreach ($menu["colors"] as $key => $color) {
+              array_push($conditionsArr, $color["condition"] ?? "");
+            }
+          }
+        }
       }
     }
     // JCLog::trace("conditionsArr " . json_encode($conditionsArr));
@@ -1095,7 +1124,7 @@ class apiHelper {
           'object_id' => (string) $object->getId() ?: null,
           'keys' => array()
         );
-        foreach ($object->getConfiguration('summary') as $key => $value) {
+        foreach (($object->getConfiguration('summary') ?? []) as $key => $value) {
           $sum = $object->getSummary($key);
           array_push($object_info['keys'], array(
             $key => array('value' => $sum, 'cmds' => $value)

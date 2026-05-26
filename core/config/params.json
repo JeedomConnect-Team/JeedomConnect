@@ -148,6 +148,13 @@
                     "title_disable": "1",
                     "message_placeholder": "widgetId"
                 }
+            },
+            {
+                "logicalId": "currentGeolocTxt",
+                "name": "Zone Actuelle",
+                "type": "info",
+                "subtype": "string",
+                "isVisible": 1
             }
         ],
         "android": [
