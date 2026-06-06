@@ -507,6 +507,12 @@ try {
 		ajax::success($data);
 	}
 
+	if (init('action') == 'removeWidgetCustomData') {
+		$id = init('id');
+		JeedomConnectWidget::removeWidgetConf($id);
+		ajax::success();
+	}
+
 	if (init('action') == 'removeWidgetConfig') {
 		$allConfig = (init('all') !== null) && init('all');
 
@@ -574,8 +580,8 @@ try {
 				JCLog::debug('$custo : ' .  json_encode($all_custo_keys));
 				foreach ($all_widgetIds as $search_custo_id) {
 					if (in_array($search_custo_id, $all_custo_keys) && !in_array($eqLogic->getName(), $arrayNameCusto)) {
-						JCLog::debug(' ***** ' . $myId . ' custo exist for [' . $eqLogic->getName() . ']');
-						$arrayNameCusto[] = $eqLogic->getName();
+						JCLog::debug(' ***** ' . $search_custo_id . ' custo exist for [' . $eqLogic->getName() . ']');
+						$arrayNameCusto[$eqLogic->getName()] = 'customData::' . $eqLogic->getConfiguration('apiKey') . '::' . $search_custo_id;
 					}
 				}
 			} else {

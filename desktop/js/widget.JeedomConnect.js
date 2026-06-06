@@ -99,8 +99,12 @@ function getWidgetModal(_options, _callback) {
 
         let varDescrInCusto = `Personnalisé sur : <ul style="padding-left: 15px;">`;
 
+        // console.log('inCusto => ', _options.inCusto);
+
         $.each(_options.inCusto, function (index, value) {
-            varDescrInCusto += `<li>${value}</li>`;
+            // console.log('index => ', index);
+            // console.log('value => ', value);
+            varDescrInCusto += `<li>${index} <span class="btn btn-xs btn-info removeCustomWidgetInfo" title="Supprimer la personnalisation de cet appareil" data-id="${value}">❌</span></li>`;
         });
 
         varDescrInCusto += '</ul>';
@@ -695,6 +699,25 @@ function refreshAddWidgets() {
     loadSortable('all');
 }
 
+
+// Handler vanilla réutilisable avec vérification stricte
+window.handleRemoveCustomWidgetInfo = function (e) {
+    const element = e.target.closest('span.removeCustomWidgetInfo');
+    if (element) {
+        e.stopPropagation();
+        e.preventDefault();
+        var id = element.dataset.id;
+        // console.log('id to remove => ', id);
+        removeCustomData(id);
+        element.parentNode.remove();
+    }
+};
+
+// Attach une seule fois au démarrage
+if (!document._removeCustomWidgetInfoAttached) {
+    document._removeCustomWidgetInfoAttached = true;
+    document.addEventListener('click', window.handleRemoveCustomWidgetInfo, true);
+}
 
 $("body").on('click', '#widgetModal .imagePicker', function () {
     var newElt = $(this).nextAll("a[data-id^='icon-']:first");
@@ -1850,3 +1873,26 @@ $(".widgetMenu .duplicateWidget").click(function () {
     // $('.widgetMenu .saveWidget').attr('exit-attr', 'true');
 
 });
+
+
+async function removeCustomData(id) {
+    const result = await $.post({
+        url: "plugins/JeedomConnect/core/ajax/jeedomConnect.ajax.php",
+        data: {
+            action: 'removeWidgetCustomData',
+            id: id
+        },
+        cache: false,
+        dataType: 'json',
+        async: false,
+    });
+
+    if (result.state != 'ok') {
+        $('#div_alert').showAlert({
+            message: result.result,
+            level: 'danger'
+        });
+    }
+
+    return result;
+}
