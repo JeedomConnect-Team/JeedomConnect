@@ -83,25 +83,31 @@ function getWidgetModal(_options, _callback) {
 
     if (_options.inEquipments !== undefined && _options.inEquipments != '') {
 
-        $('#widgetInclusion').html('<span id="widgetExistInEquipement" style="display:none">' + _options.inEquipments.join(', ') + '</span>');
-        $('#widgetInclusion').append('Utilisé dans :<br/><ul>');
+        let varDescr = `Utilisé dans : <ul style="padding-left: 15px;">`;
 
         $.each(_options.inEquipments, function (index, value) {
-            $("#widgetInclusion").append('<li>' + value + '</li>');
+            varDescr += `<li>${value}</li>`;
         });
-        $("#widgetInclusion").append('</ul>');
+
+        varDescr += '</ul>';
+
+        $('#widgetInclusion').html('<span id="widgetExistInEquipement" style="display:none">' + _options.inEquipments.join(', ') + '</span>' + varDescr);
         $('#widgetInclusion').css('display', 'block');
     }
 
     if (_options.inCusto !== undefined && _options.inCusto != '') {
 
-        $('#widgetPerso').append('Personnalisé sur :<br/><ul>');
+        let varDescrInCusto = `Personnalisé sur : <ul style="padding-left: 15px;">`;
 
         $.each(_options.inCusto, function (index, value) {
-            $("#widgetPerso").append('<li>' + value + '</li>');
+            varDescrInCusto += `<li>${value}</li>`;
         });
-        $("#widgetPerso").append('</ul>');
+
+        varDescrInCusto += '</ul>';
+
+        $('#widgetPerso').html(varDescrInCusto);
         $('#widgetPerso').css('display', 'block');
+
     }
 
     if (_options.removeAction != true) {
