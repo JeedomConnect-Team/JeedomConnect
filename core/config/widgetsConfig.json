@@ -5220,6 +5220,13 @@
 					"category": "binary"
 				},
 				{
+					"id": "networkCaching",
+					"name": "Mise en cache réseau (ms)",
+					"required": false,
+					"category": "string",
+					"description": "300ms par défaut. Augmenter en cas de saccades sur réseau instable, réduire pour moins de latence"
+				},
+				{
 					"id": "authent",
 					"name": "Authentification Snapshot",
 					"required": false,
@@ -5261,14 +5268,14 @@
 					"name": "Rafraîchissement",
 					"required": false,
 					"category": "string",
-					"description": "Durée en seconde entre deux images (1s par défaut)"
+					"description": "Durée en seconde entre deux images (3s par défaut)"
 				},
 				{
 					"id": "compress",
 					"name": "Qualité SnapShot (%)",
 					"required": false,
 					"category": "string",
-					"description": "100% par défaut (haute qualité)"
+					"description": "70% par défaut"
 				},
 				{
 					"id": "resize",
