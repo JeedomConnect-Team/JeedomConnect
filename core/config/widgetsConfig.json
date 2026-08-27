@@ -5227,6 +5227,13 @@
 					"description": "300ms par défaut. Augmenter en cas de saccades sur réseau instable, réduire pour moins de latence"
 				},
 				{
+					"id": "disableHwDecoder",
+					"name": "Désactiver le décodage matériel (iOS)",
+					"required": false,
+					"category": "binary",
+					"description": "À activer uniquement si l'image reste noire sur cette caméra. Bascule sur un décodage logiciel, plus gourmand en CPU"
+				},
+				{
 					"id": "authent",
 					"name": "Authentification Snapshot",
 					"required": false,
