@@ -5231,7 +5231,8 @@
 					"name": "Désactiver le décodage matériel (iOS)",
 					"required": false,
 					"category": "binary",
-					"description": "À activer uniquement si l'image reste noire sur cette caméra. Bascule sur un décodage logiciel, plus gourmand en CPU"
+					"description": "À activer uniquement si l'image reste noire sur cette caméra. Bascule sur un décodage logiciel, plus gourmand en CPU",
+					"customizable": true
 				},
 				{
 					"id": "authent",
