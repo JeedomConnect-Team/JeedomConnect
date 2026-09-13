@@ -623,6 +623,8 @@ class apiHelper {
 
     $eqNameString = $eqName ? "sur l'appareil " . $eqName : "";
     if (!is_object($user)) {
+      user::failedLogin();
+      sleep(5);
       return self::raiseException(__('Echec lors de l\'authentification ' . $eqNameString, __FILE__));
     }
 
