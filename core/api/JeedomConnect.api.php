@@ -48,8 +48,13 @@ $isWsConnexion = false;
 
 try {
 
-  $params = $jsonrpc->getParams();
   $method = $jsonrpc->getMethod();
+
+  if (user::isBan()) {
+    throw new Exception(__('Trop de tentatives échouées, adresse IP temporairement bannie', __FILE__), -32001);
+  }
+
+  $params = $jsonrpc->getParams();
   $messageId = $jsonrpc->getId();
 
   $connexionType = $params['connexionFrom'] ?? 'API';
