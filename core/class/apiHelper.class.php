@@ -19,7 +19,7 @@
 require_once dirname(__FILE__) . "/../../../../core/php/core.inc.php";
 
 class apiHelper {
-  public static $_skipLog = array('GET_EVENTS', 'GET_LOG');
+  public static $_skipLog = array('GET_EVENTS', 'GET_LOG', 'SET_FACE_DETECTED');
 
   /**
    * Dispatch API call
@@ -246,6 +246,18 @@ class apiHelper {
         case 'CAMERA_STREAM_CLOSE':
           self::cameraStreamClose($param['sessionId'] ?? null);
           return null;
+          break;
+
+        case 'CAMERA_TURN_CREDENTIALS':
+          // Le fournisseur n'est JAMAIS choisi par l'app ni par un paramètre
+          // de la requête, uniquement par le réglage serveur (page de config
+          // du plugin) : 'cloudflare' (offre gratuite BYO, défaut) ou
+          // 'managed' (offre payante Lemon Squeezy). Les URLs du service de
+          // mint managé sont visibles dans ce fichier (lisible par tout
+          // utilisateur Jeedom) - un appel API direct (avec sa propre
+          // apiKey) ne doit donc pas pouvoir forcer un autre mode que celui
+          // explicitement choisi dans la config.
+          return self::cameraTurnCredentials(config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
           break;
 
         case 'ADD_WIDGETS':
@@ -1520,6 +1532,27 @@ class apiHelper {
       return;
     }
     Go2rtc::closeSession($sessionId);
+  }
+
+  /**
+   * Credentials TURN de courte durée pour le client (webrtcPlayer.js, mode
+   * 'webrtc-remote'). Pas de widgetId : ces credentials ne sont spécifiques
+   * à aucune caméra, juste un accès temporaire au relais - déjà gardées par
+   * l'authentification apiKey standard de cette API, comme toute autre
+   * méthode. Ne jamais renvoyer de secret serveur (Turn Key ID/API Token
+   * Cloudflare, secret coturn) à l'app - seul Go2rtc::mintClientTurnCredentials()
+   * les utilise côté serveur.
+   *
+   * @param string $provider 'cloudflare' (défaut, comportement normal du
+   *                          plugin) ou 'selfhosted' (VPS Oracle, dormant -
+   *                          voir Go2rtc::mintClientTurnCredentials()).
+   */
+  private static function cameraTurnCredentials($provider = 'cloudflare') {
+    try {
+      return array('iceServers' => Go2rtc::mintClientTurnCredentials($provider));
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'CAMERA_TURN_CREDENTIALS');
+    }
   }
 
   /**

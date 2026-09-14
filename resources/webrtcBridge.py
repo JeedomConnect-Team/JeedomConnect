@@ -14,11 +14,10 @@ import websocket as ws_client
 # Bridge HTTP <-> go2rtc/api/ws, localhost uniquement (jamais exposé hors de
 # cette machine - seul Go2rtc.class.php l'appelle, en local). Permet à l'app
 # de parler à go2rtc/api/ws via de simples appels HTTP courts, sans dépendre
-# d'un canal WebSocket persistant côté app (voir plan "Passage en signaling
-# WebSocket + trickle ICE" - la variante WebSocket bout-en-bout a été
-# abandonnée : elle ne fonctionne que pour les utilisateurs ayant activé
-# useWs, minoritaires, alors que le HTTP fonctionne pour tous, avec ou sans
-# reverse proxy personnalisé).
+# d'un canal WebSocket persistant côté app - la variante WebSocket
+# bout-en-bout a été abandonnée : elle ne fonctionne que pour les
+# utilisateurs ayant activé useWs, minoritaires, alors que le HTTP
+# fonctionne pour tous, avec ou sans reverse proxy personnalisé).
 #
 # Générique : sert aussi bien le signaling WebRTC (offer/candidate/answer,
 # JSON uniquement) que le flux vidéo MSE (un message JSON initial puis des

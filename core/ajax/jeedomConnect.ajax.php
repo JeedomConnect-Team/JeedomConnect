@@ -226,6 +226,96 @@ try {
 		ajax::success(array('eqLogic' => $nbEq));
 	}
 
+	if (init('action') == 'restartGo2rtc') {
+		// go2rtc n'est PAS le démon principal du plugin (celui contrôlé par
+		// deamon_info()/deamon_start(), voir action restartDaemon ci-dessus) -
+		// il n'a donc pas de widget de démon natif Jeedom sur la page
+		// équipement. Bouton dédié demandé par l'utilisateur, notamment utile
+		// après un changement de mode TURN (Go2rtc::writeConfig() ne régénère
+		// sa config qu'au tout premier démarrage - un redémarrage simple ne
+		// suffit pas à prendre en compte un nouveau mode/credential tant que
+		// le fichier de config existe déjà).
+		try {
+			Go2rtc::start();
+			ajax::success();
+		} catch (Exception $e) {
+			ajax::error("Échec du redémarrage de go2rtc : " . $e->getMessage());
+		}
+	}
+
+	if (init('action') == 'testCloudflareTurn') {
+		// Vérifie que le Turn Key ID / API Token Cloudflare actuellement
+		// SAUVEGARDÉS (pas la valeur en cours de frappe dans le formulaire,
+		// pas encore soumise) permettent bien de miner des credentials TURN.
+		if (!Go2rtc::isTurnConfigured()) {
+			ajax::error("Renseignez d'abord le Turn Key ID et l'API Token Cloudflare, puis enregistrez la page avant de tester.");
+		}
+		try {
+			$iceServers = Go2rtc::mintClientTurnCredentials('cloudflare');
+			$turnCount = 0;
+			foreach ($iceServers as $iceServer) {
+				if (!empty($iceServer['username'])) $turnCount++;
+			}
+			if ($turnCount == 0) {
+				ajax::error("Réponse Cloudflare reçue mais sans identifiants TURN - vérifiez que la Turn Key est bien active.");
+			}
+			ajax::success();
+		} catch (Exception $e) {
+			ajax::error("Échec : " . $e->getMessage());
+		}
+	}
+
+	if (init('action') == 'activateLicense') {
+		// Active (une seule fois par clé) la licence Lemon Squeezy de l'offre
+		// payante managée - voir Go2rtc::activateLicense(). Porte sur la clé
+		// ENREGISTRÉE (sauvegardez la page après avoir collé la clé, puis
+		// cliquez sur "Activer") - même logique que testCloudflareTurn.
+		// Volontairement déclenché par un bouton dédié, jamais
+		// automatiquement à la sauvegarde de la page (la limite
+		// d'activation Lemon Squeezy est fixée à 1 par clé).
+		if (Go2rtc::getLicenseKey() == '') {
+			ajax::error("Renseignez d'abord votre clé de licence, puis enregistrez la page avant d'activer.");
+		}
+		try {
+			Go2rtc::activateLicense(Go2rtc::getLicenseKey());
+			ajax::success();
+		} catch (Exception $e) {
+			ajax::error("Échec : " . $e->getMessage());
+		}
+	}
+
+	if (init('action') == 'startManagedTrial') {
+		Go2rtc::startManagedTrial();
+		ajax::success();
+	}
+
+	if (init('action') == 'testManagedTurn') {
+		// Sans licence activée, mintManagedTurnCredentials() bascule
+		// automatiquement sur l'essai gratuit - rien à vérifier ici, ce
+		// bouton doit fonctionner dans les deux cas.
+		try {
+			$iceServers = Go2rtc::mintManagedTurnCredentials(300);
+			$turnCount = 0;
+			foreach ($iceServers as $iceServer) {
+				if (!empty($iceServer['username'])) $turnCount++;
+			}
+			if ($turnCount == 0) {
+				ajax::error("Réponse reçue mais sans identifiants TURN.");
+			}
+			ajax::success();
+		} catch (Exception $e) {
+			ajax::error("Échec : " . $e->getMessage());
+		}
+	}
+
+	if (init('action') == 'getManagedTurnStatus') {
+		try {
+			ajax::success(Go2rtc::getManagedTurnStatus());
+		} catch (Exception $e) {
+			ajax::error("Échec : " . $e->getMessage());
+		}
+	}
+
 	if (init('action') == 'getWidgetMass') {
 		$ids = init('id') ?? 'all';
 		$allWidgets = JeedomConnectWidget::getWidgets($ids);

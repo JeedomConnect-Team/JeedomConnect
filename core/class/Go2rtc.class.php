@@ -45,6 +45,11 @@ class Go2rtc {
 	// une mise à jour est nécessaire un jour.
 	const GO2RTC_TAG = 'v1.9.14';
 
+	// POC : durée de vie (secondes) du credential TURN Cloudflare miné pour
+	// go2rtc lui-même (config statique, pas de rafraîchissement à chaud -
+	// voir writeConfig()). 24h.
+	const GO2RTC_ICE_SERVERS_TTL = 86400;
+
 	public static $_bin_dir = __DIR__ . '/../../resources/go2rtc/';
 
 	public static function getBinaryPath() {
@@ -69,6 +74,426 @@ class Go2rtc {
 
 	public static function streamName($widgetId) {
 		return 'jc_' . $widgetId;
+	}
+
+	/*     * ********************** TURN (Cloudflare - fournisseur par défaut, offre gratuite BYO) ****** */
+	// Cloudflare est plus rapide en conditions normales qu'un relais TURN
+	// auto-hébergé, avec un taux de dégradation comparable ou meilleur -
+	// d'où son choix comme fournisseur par défaut. Turn Key ID + API Token
+	// saisis sur la page de configuration du plugin (offre gratuite "BYO",
+	// chaque utilisateur son propre compte Cloudflare) - jamais transmis à
+	// l'app (seuls les credentials courte durée générés à partir d'eux le
+	// sont). Le VPS auto-hébergé (ci-dessous) reste disponible en dormant.
+
+	public static function getTurnKeyId() {
+		return config::byKey('cloudflareTurnKeyId', 'JeedomConnect', '');
+	}
+
+	public static function getTurnApiToken() {
+		return config::byKey('cloudflareTurnApiToken', 'JeedomConnect', '');
+	}
+
+	public static function isTurnConfigured() {
+		return self::getTurnKeyId() != '' && self::getTurnApiToken() != '';
+	}
+
+	/**
+	 * Chaîne YAML entre guillemets simples (pas de séquences d'échappement à
+	 * gérer comme en JSON/double guillemets - seul un guillemet simple
+	 * littéral doit être doublé). À privilégier sur json_encode() pour toute
+	 * valeur pouvant contenir un "/" (URLs, credentials...) : json_encode()
+	 * échappe les "/" en "\/", une séquence que le parseur YAML de go2rtc ne
+	 * reconnaît pas ("unknown escape character").
+	 */
+	private static function yamlSingleQuote($s) {
+		return "'" . str_replace("'", "''", $s) . "'";
+	}
+
+	/**
+	 * Génère des credentials TURN Cloudflare via leur API de mint
+	 * (https://developers.cloudflare.com/realtime/turn/), Turn Key ID +
+	 * API Token restant côté serveur (Bearer, jamais transmis à l'app).
+	 * Endpoint "generate-ice-servers" (pas juste "generate") : renvoie une
+	 * LISTE de descripteurs {urls, [username, credential]} directement
+	 * utilisable comme RTCPeerConnection({iceServers: ...}) - vérifié en
+	 * conditions réelles (curl direct) : 2 entrées, un STUN sans credentials
+	 * puis un TURN avec username/credential.
+	 *
+	 * @param int $ttlSeconds durée de vie du credential généré
+	 * @return array la liste d'objets {urls, username?, credential?} telle
+	 *                 que retournée par Cloudflare sous 'iceServers'
+	 * @throws Exception si Cloudflare est injoignable, mal configuré, ou
+	 *                     répond une erreur
+	 */
+	private static function mintTurnCredentials($ttlSeconds) {
+		if (!self::isTurnConfigured()) {
+			throw new Exception(__("TURN Cloudflare non configuré (Turn Key ID / API Token manquants)", __FILE__));
+		}
+
+		$url = 'https://rtc.live.cloudflare.com/v1/turn/keys/' . rawurlencode(self::getTurnKeyId()) . '/credentials/generate-ice-servers';
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+			'Content-Type: application/json',
+			'Authorization: Bearer ' . self::getTurnApiToken(),
+		));
+		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(array('ttl' => $ttlSeconds)));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+
+		if ($error) {
+			throw new Exception('Cloudflare TURN injoignable : ' . $error);
+		}
+		$decoded = json_decode($body, true);
+		// Cet endpoint répond 201 (Created), pas seulement 200 : il crée bel
+		// et bien une ressource (les credentials courte durée). On se base
+		// surtout sur la présence d'iceServers.
+		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['iceServers'])) {
+			throw new Exception('Cloudflare TURN : réponse invalide (' . $httpCode . ') : ' . $body);
+		}
+		return $decoded['iceServers'];
+	}
+
+	/**
+	 * Credential courte durée pour l'app (webrtcPlayer.js, mode
+	 * 'webrtc-remote') - voir apiHelper::cameraTurnCredentials.
+	 * mintTurnCredentials()/mintSelfHostedTurnCredentials() renvoient déjà la
+	 * liste iceServers telle quelle (STUN + TURN) - rien à envelopper ici.
+	 *
+	 * Cloudflare est le fournisseur par défaut : campagne de mesure terrain
+	 * concluante en sa faveur face au VPS auto-hébergé (connexion plus
+	 * rapide, taux de dégradation comparable ou meilleur). Le VPS reste
+	 * disponible en dormant (`$provider = 'selfhosted'`) pour un usage
+	 * avancé futur, pas exposé côté app pour l'instant.
+	 *
+	 * @param string $provider 'cloudflare' (défaut), 'managed' ou 'selfhosted'.
+	 * @return array un tableau iceServers directement utilisable comme
+	 *                 RTCPeerConnection({iceServers: ...})
+	 */
+	public static function mintClientTurnCredentials($provider = 'cloudflare', $ttlSeconds = 300) {
+		if ($provider === 'selfhosted') {
+			return self::mintSelfHostedTurnCredentials($ttlSeconds);
+		}
+		if ($provider === 'managed') {
+			return self::mintManagedTurnCredentials($ttlSeconds);
+		}
+		return self::mintTurnCredentials($ttlSeconds);
+	}
+
+	/*     * ********************** TURN (auto-hébergé, coturn sur VPS) ********** */
+	// Remplace le TURN Cloudflare ci-dessus comme option par défaut : évite
+	// d'imposer à chaque utilisateur du plugin la création d'un compte
+	// Cloudflare (carte bancaire requise pour le palier gratuit malgré le
+	// discours marketing - confirmé via un fil de la communauté Cloudflare).
+	// VPS "Always Free" (Oracle Cloud) faisant tourner coturn + un petit
+	// service de mint HTTP dédié (turn_mint_service.py, non versionné,
+	// tourne uniquement sur ce VPS) : le secret partagé coturn (schéma REST
+	// API, HMAC-SHA1) ne quitte JAMAIS ce serveur et n'est donc jamais
+	// exposé dans ce dépôt public - seule l'URL du service de mint est en
+	// dur ici, ce qui est sans risque (aucune authentification à connaître
+	// pour l'appeler, protégé côté VPS par un rate-limit par IP + plafond
+	// global/jour, pas par un secret partagé).
+
+	const SELF_HOSTED_TURN_MINT_URL = 'http://141.145.201.141:8089/mint';
+
+	/**
+	 * @param int $ttlSeconds durée de vie du credential généré
+	 * @return array un tableau iceServers (même forme que
+	 *                 mintTurnCredentials()) directement utilisable comme
+	 *                 RTCPeerConnection({iceServers: ...})
+	 * @throws Exception si le service de mint est injoignable ou répond une
+	 *                     erreur
+	 */
+	public static function mintSelfHostedTurnCredentials($ttlSeconds) {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, self::SELF_HOSTED_TURN_MINT_URL . '?ttl=' . intval($ttlSeconds));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+
+		if ($error) {
+			throw new Exception('TURN auto-hébergé injoignable : ' . $error);
+		}
+		$decoded = json_decode($body, true);
+		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['iceServers'])) {
+			throw new Exception('TURN auto-hébergé : réponse invalide (' . $httpCode . ') : ' . $body);
+		}
+		return $decoded['iceServers'];
+	}
+
+	/*     * ********************** TURN (managé, abonnement payant Lemon Squeezy) ******** */
+	// Offre payante : l'utilisateur n'a pas besoin de compte Cloudflare - il souscrit un
+	// abonnement Lemon Squeezy (Merchant of Record, TVA gérée pour nous),
+	// reçoit une clé de licence, et le service de mint sur le VPS (distinct
+	// de turn_mint_service.py utilisé par l'offre auto-hébergée dormante)
+	// vérifie cette licence puis mine des credentials depuis UNE Turn Key
+	// Cloudflare dédiée à cette offre (compte du développeur, jamais celle
+	// de l'utilisateur), pour ne pas mélanger la conso "test perso" et la
+	// conso agrégée des abonnés dans la facturation Cloudflare.
+	//
+	// L'API de licence Lemon Squeezy (activate/validate) est publique par
+	// conception (pas de clé API secrète à fournir - seule la license_key
+	// elle-même est nécessaire) : https://docs.lemonsqueezy.com/api/license-api
+	//
+	// Quota 10 Go/mois suivi en octets réels côté service de mint, via
+	// l'API Analytics GraphQL de Cloudflare (chaque credential est tagué
+	// d'un customIdentifier au mint) ; le nombre de sessions par licence ne
+	// sert plus que de filet de sécurité anti-abus si l'Analytics est
+	// indisponible.
+
+	const MANAGED_TURN_MINT_URL = 'http://141.145.201.141:8090/mint';
+	const MANAGED_TURN_TRIAL_URL = 'http://141.145.201.141:8090/mint-trial';
+	const MANAGED_TURN_STATUS_URL = 'http://141.145.201.141:8090/status';
+	const LEMONSQUEEZY_LICENSE_API = 'https://api.lemonsqueezy.com/v1/licenses';
+
+	public static function getLicenseKey() {
+		return config::byKey('managedTurnLicenseKey', 'JeedomConnect', '');
+	}
+
+	private static function getLicenseInstanceId() {
+		return config::byKey('managedTurnLicenseInstanceId', 'JeedomConnect', '');
+	}
+
+	public static function isManagedTurnConfigured() {
+		return self::getLicenseKey() != '' && self::getLicenseInstanceId() != '';
+	}
+
+	/**
+	 * Active la clé de licence auprès de Lemon Squeezy (une seule fois par
+	 * clé - la limite d'activation est fixée à 1 côté Lemon Squeezy, un
+	 * second appel activate() avec la même clé échouerait). Idempotent :
+	 * si une instance est déjà enregistrée pour cette clé exacte, ne fait
+	 * rien. À appeler explicitement (bouton dédié), jamais automatiquement
+	 * à chaque sauvegarde de la page de config.
+	 *
+	 * @throws Exception si la clé est invalide ou l'activation échoue
+	 */
+	public static function activateLicense($licenseKey) {
+		$licenseKey = trim($licenseKey);
+		if ($licenseKey == '') {
+			throw new Exception(__("Clé de licence manquante", __FILE__));
+		}
+		if ($licenseKey === self::getLicenseKey() && self::getLicenseInstanceId() != '') {
+			// Déjà activée pour cette clé - rien à refaire.
+			return;
+		}
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, self::LEMONSQUEEZY_LICENSE_API . '/activate');
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept: application/json'));
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
+			'license_key' => $licenseKey,
+			// Nom d'instance : identifie cette installation Jeedom côté
+			// tableau de bord Lemon Squeezy, purement informatif.
+			'instance_name' => 'jeedom-' . jeedom::getApiKey(),
+		)));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+
+		if ($error) {
+			throw new Exception('Lemon Squeezy injoignable : ' . $error);
+		}
+		$decoded = json_decode($body, true);
+		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['activated'])) {
+			$msg = $decoded['error'] ?? ('HTTP ' . $httpCode);
+			throw new Exception('Activation de la licence refusée : ' . $msg);
+		}
+		if (empty($decoded['instance']['id'])) {
+			throw new Exception('Activation réussie mais identifiant d\'instance manquant dans la réponse');
+		}
+
+		config::save('managedTurnLicenseKey', $licenseKey, 'JeedomConnect');
+		config::save('managedTurnLicenseInstanceId', $decoded['instance']['id'], 'JeedomConnect');
+	}
+
+	public static function isManagedTrialStarted() {
+		return config::byKey('managedTurnTrialStarted', 'JeedomConnect', '') != '';
+	}
+
+	/**
+	 * Pose le jalon de départ de l'essai gratuit - déclenché explicitement
+	 * par un bouton dédié dans la config du plugin, JAMAIS automatiquement
+	 * à la première ouverture d'une caméra (l'utilisateur doit savoir
+	 * consciemment que le délai de 7 jours démarre à cet instant).
+	 */
+	public static function startManagedTrial() {
+		config::save('managedTurnTrialStarted', '1', 'JeedomConnect');
+		// Enregistre immédiatement l'essai côté service de mint (sinon le
+		// statut afficherait "non démarré" jusqu'à la première ouverture
+		// réelle d'une caméra hors LAN) - consomme 1 session sur les 240
+		// allouées, coût négligeable pour garantir un statut exact dès le
+		// clic. Non bloquant : si le service est injoignable, le jalon
+		// local reste posé et le premier essai réel réessaiera.
+		try {
+			self::mintManagedTurnCredentials(self::GO2RTC_ICE_SERVERS_TTL);
+		} catch (Exception $e) {
+			log::add('JeedomConnect', 'debug', 'startManagedTrial : pré-enregistrement essai échoué (non bloquant) : ' . $e->getMessage());
+		}
+	}
+
+	/**
+	 * Sans licence activée, bascule automatiquement sur l'essai gratuit (7
+	 * jours / 4 Go, sans carte bancaire - Lemon Squeezy ne permet pas
+	 * d'essai sans CB, limitation confirmée de leur plateforme, voir plan) -
+	 * à condition que startManagedTrial() ait déjà été appelée (bouton
+	 * dédié). L'identifiant d'essai est jeedom::getHardwareKey() - la "clé
+	 * d'installation" du CORE Jeedom (pas générée par ce plugin), qui
+	 * survit à une réinstallation du plugin contrairement à un identifiant
+	 * que ce plugin aurait généré lui-même dans sa propre config.
+	 *
+	 * @param int $ttlSeconds durée de vie du credential généré
+	 * @return array un tableau iceServers (même forme que
+	 *                 mintTurnCredentials()) directement utilisable comme
+	 *                 RTCPeerConnection({iceServers: ...})
+	 * @throws Exception si l'essai n'a pas été démarré, si la
+	 *                     licence/l'essai est invalide, le quota est
+	 *                     dépassé, ou le service de mint est injoignable
+	 */
+	public static function mintManagedTurnCredentials($ttlSeconds) {
+		if (self::isManagedTurnConfigured()) {
+			$url = self::MANAGED_TURN_MINT_URL . '?' . http_build_query(array(
+				'license_key' => self::getLicenseKey(),
+				'instance_id' => self::getLicenseInstanceId(),
+				'ttl' => intval($ttlSeconds),
+			));
+		} else {
+			if (!self::isManagedTrialStarted()) {
+				throw new Exception(__("Essai gratuit non démarré - cliquez sur \"Démarrer mon essai gratuit\" dans la configuration du plugin", __FILE__));
+			}
+			$url = self::MANAGED_TURN_TRIAL_URL . '?' . http_build_query(array(
+				'hardware_key' => jeedom::getHardwareKey(),
+				'ttl' => intval($ttlSeconds),
+			));
+		}
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+
+		if ($error) {
+			throw new Exception('Service TURN managé injoignable : ' . $error);
+		}
+		$decoded = json_decode($body, true);
+		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['iceServers'])) {
+			$msg = $decoded['error'] ?? $body;
+			$code = is_array($decoded) ? ($decoded['code'] ?? '') : '';
+			if ($code != '') {
+				self::notifyManagedTurnIssue($code, $msg);
+			}
+			throw new Exception('Service TURN managé : ' . $msg);
+		}
+		// Mint reussi : l'abonnement/essai est valide et dans les clous -
+		// on leve toute alerte precedente du centre de messages Jeedom
+		// (l'utilisateur a corrige la situation - renouvellement, nouvelle
+		// licence, nouveau mois qui reinitialise le quota...).
+		self::clearManagedTurnAlerts();
+		return $decoded['iceServers'];
+	}
+
+	// logicalId utilises pour le centre de messages Jeedom (message::add) -
+	// un logicalId stable par motif permet a Jeedom de dedoublonner
+	// automatiquement (occurrences++ / date mise a jour) plutot que de
+	// spammer un nouveau message a chaque camera ouverte tant que le
+	// probleme n'est pas corrige.
+	const MANAGED_TURN_ALERT_LOGICAL_IDS = array(
+		'license_invalid' => 'managedTurnLicenseInvalid',
+		'quota_exceeded' => 'managedTurnQuotaExceeded',
+		'trial_expired' => 'managedTurnTrialExpired',
+		'trial_quota_exceeded' => 'managedTurnTrialQuotaExceeded',
+	);
+
+	/**
+	 * Pose une alerte dans le centre de messages Jeedom (bloque de facto le
+	 * mode caméra hors LAN payant, puisque mintManagedTurnCredentials() a
+	 * de toute facon leve une Exception au moment de cet appel - ceci n'est
+	 * qu'un avertissement lisible pour l'utilisateur, pas un mecanisme de
+	 * blocage supplementaire).
+	 *
+	 * @param string $code un des motifs connus (voir
+	 *                       MANAGED_TURN_ALERT_LOGICAL_IDS), sinon message
+	 *                       generique
+	 * @param string $fallbackMsg message brut du service, utilise si $code
+	 *                              n'est pas reconnu
+	 */
+	private static function notifyManagedTurnIssue($code, $fallbackMsg) {
+		$messages = array(
+			'license_invalid' => __("Votre licence JeedomConnect Cloud TURN est invalide, expirée ou non reconnue. Le mode caméra hors LAN payant est bloqué - vérifiez votre abonnement Lemon Squeezy ou réactivez votre licence depuis la configuration du plugin.", __FILE__),
+			'quota_exceeded' => __("Le quota mensuel de 10 Go de votre abonnement JeedomConnect Cloud TURN est atteint. Le mode caméra hors LAN payant est bloqué jusqu'au mois prochain.", __FILE__),
+			'trial_expired' => __("Votre essai gratuit de 7 jours pour le mode caméra hors LAN payant est terminé. Abonnez-vous depuis la configuration du plugin pour continuer à l'utiliser.", __FILE__),
+			'trial_quota_exceeded' => __("Le quota de 4 Go de votre essai gratuit pour le mode caméra hors LAN payant est atteint. Abonnez-vous depuis la configuration du plugin pour continuer à l'utiliser.", __FILE__),
+		);
+		$logicalId = self::MANAGED_TURN_ALERT_LOGICAL_IDS[$code] ?? 'managedTurnError';
+		$message = $messages[$code] ?? $fallbackMsg;
+		message::add('JeedomConnect', $message, '', $logicalId);
+	}
+
+	/**
+	 * Leve toutes les alertes managed-turn posees precedemment - appele au
+	 * premier mint reussi apres un incident (l'utilisateur a corrige la
+	 * situation).
+	 */
+	private static function clearManagedTurnAlerts() {
+		foreach (self::MANAGED_TURN_ALERT_LOGICAL_IDS as $logicalId) {
+			message::removeByPluginLogicalId('JeedomConnect', $logicalId);
+		}
+	}
+
+	/**
+	 * Statut lisible par l'utilisateur (essai ou licence) pour affichage
+	 * dans la page de config - lecture seule côté service de mint, ne
+	 * consomme aucun quota. Ne fait aucun appel réseau si aucun des deux
+	 * modes n'est pertinent (pas de licence, essai jamais démarré).
+	 *
+	 * @return array|null null si rien à afficher (essai jamais démarré et
+	 *                      pas de licence), sinon un tableau associatif
+	 *                      normalisé pour le JS :
+	 *                      {mode:'license'|'trial', ...}
+	 */
+	public static function getManagedTurnStatus() {
+		if (self::isManagedTurnConfigured()) {
+			$query = array('license_key' => self::getLicenseKey());
+		} elseif (self::isManagedTrialStarted()) {
+			$query = array('hardware_key' => jeedom::getHardwareKey());
+		} else {
+			return null;
+		}
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, self::MANAGED_TURN_STATUS_URL . '?' . http_build_query($query));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+
+		if ($error || $httpCode < 200 || $httpCode >= 300) {
+			throw new Exception('Service TURN managé injoignable : ' . ($error ?: ('HTTP ' . $httpCode)));
+		}
+		return json_decode($body, true);
 	}
 
 	/*     * ********************** WEBRTC BRIDGE (HTTP -> go2rtc/api/ws) ******** */
@@ -199,14 +624,62 @@ class Go2rtc {
 		// annoncer le port éphémère attribué à chaque nouvelle requête STUN.
 		// Utile seulement si l'utilisateur redirige un jour ce port sur sa box
 		// (non requis pour l'usage courant LAN + pont HTTP hors LAN).
+		//
+		// webrtc.ice_servers (POC 'webrtc-remote') : go2rtc tourne sur la box
+		// Jeedom, elle-même derrière NAT sans port ouvert (cf. investigation MSE dans
+		// webrtcPlayer.js) - il a donc besoin de sa PROPRE entrée TURN pour
+		// relayer sa moitié du média, pas seulement l'app - et c'est cette
+		// moitié qui porte le gros du volume réel (go2rtc relaie le flux
+		// caméra complet, pas juste de la signalisation). Doit donc utiliser
+		// le MÊME fournisseur que turnMode, sans quoi le trafic réel passerait
+		// par la mauvaise Turn Key (perso au lieu de managée, ou inversement),
+		// sans passer par la validation licence/quota/essai côté managé.
+		// Credential longue durée (pas celle, courte, de
+		// mintClientTurnCredentials côté app) car cette config est statique -
+		// lue au démarrage du démon, jamais rafraîchie à chaud. Minée une
+		// seule fois ici : si le token expire avant le prochain redémarrage
+		// du démon, régénérer ce fichier (le supprimer puis Go2rtc::start())
+		// le renouvelle - pas de rotation automatique dans ce POC. Côté
+		// managé, ce mint consomme 1 session du quota/essai à chaque
+		// (re)démarrage du démon (voir MAX_TTL côté service VPS pour que ce
+		// credential 24h ne soit pas tronqué à 10 min).
+		$webrtcYaml = "webrtc:\n"
+			. "  candidates:\n"
+			. "    - stun:8555\n";
+		try {
+			$turnMode = config::byKey('turnMode', 'JeedomConnect', 'cloudflare');
+			// mintClientTurnCredentials()/mintTurnCredentials() renvoie une
+			// LISTE de descripteurs (vérifié en conditions réelles : un STUN
+			// sans username/credential, un TURN avec) - UNE SEULE clé
+			// "ice_servers:", avec un item de liste par descripteur. La
+			// répéter à chaque itération produirait un YAML invalide (clé de
+			// mapping dupliquée sous webrtc:), silencieusement écrasée/mal
+			// interprétée par le parseur de go2rtc.
+			$iceServers = self::mintClientTurnCredentials($turnMode, self::GO2RTC_ICE_SERVERS_TTL);
+			$webrtcYaml .= "  ice_servers:\n";
+			foreach ($iceServers as $iceServer) {
+				$urls = array_map(function ($u) {
+					return self::yamlSingleQuote($u);
+				}, (array) ($iceServer['urls'] ?? array()));
+				$webrtcYaml .= "    - urls: [ " . implode(', ', $urls) . " ]\n";
+				// username/credential absents pour l'entrée STUN (pas
+				// d'authentification requise) - ne les écrire que s'ils
+				// existent réellement.
+				if (!empty($iceServer['username'])) {
+					$webrtcYaml .= "      username: " . self::yamlSingleQuote($iceServer['username']) . "\n"
+						. "      credential: " . self::yamlSingleQuote($iceServer['credential'] ?? '') . "\n";
+				}
+			}
+		} catch (Exception $e) {
+			JCLog::warning('go2rtc: échec du mint TURN pour sa propre config - ' . $e->getMessage());
+		}
+
 		$yaml = "api:\n"
 			. "  listen: \":" . self::getPort() . "\"\n"
 			. "  allow_paths:\n"
 			. "    - /api/streams\n"
 			. "    - /api/ws\n"
-			. "webrtc:\n"
-			. "  candidates:\n"
-			. "    - stun:8555\n"
+			. $webrtcYaml
 			. "streams:\n";
 		file_put_contents(self::getConfigPath(), $yaml);
 	}
@@ -294,11 +767,21 @@ class Go2rtc {
 		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-		curl_exec($ch);
-		if ($error = curl_error($ch)) {
-			JCLog::warning('go2rtc API error (' . $method . ' ' . $url . ') => ' . $error);
-		}
+		$body = curl_exec($ch);
+		$error = curl_error($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
+
+		if ($error) {
+			JCLog::warning('go2rtc API error (' . $method . ' ' . $url . ') => ' . $error);
+			return;
+		}
+		// Un curl_error() vide ne veut dire que "requête HTTP terminée" -
+		// sans ça, un rejet applicatif de go2rtc sur un code non-2xx (ex.
+		// source refusée) passe complètement inaperçu (ni log, ni exception).
+		if ($httpCode < 200 || $httpCode >= 300) {
+			JCLog::warning('go2rtc API rejet (' . $method . ' ' . $url . ') => HTTP ' . $httpCode . ' : ' . $body);
+		}
 	}
 
 	private static function bridgeInfo() {
