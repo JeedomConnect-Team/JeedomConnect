@@ -231,96 +231,29 @@ class Go2rtc {
 		return $decoded['iceServers'];
 	}
 
-	/*     * ********************** TURN (managé, abonnement payant Lemon Squeezy) ******** */
-	// Offre payante : l'utilisateur n'a pas besoin de compte Cloudflare - il souscrit un
-	// abonnement Lemon Squeezy (Merchant of Record, TVA gérée pour nous),
-	// reçoit une clé de licence, et le service de mint sur le VPS (distinct
-	// de turn_mint_service.py utilisé par l'offre auto-hébergée dormante)
-	// vérifie cette licence puis mine des credentials depuis UNE Turn Key
-	// Cloudflare dédiée à cette offre (compte du développeur, jamais celle
-	// de l'utilisateur), pour ne pas mélanger la conso "test perso" et la
-	// conso agrégée des abonnés dans la facturation Cloudflare.
-	//
-	// L'API de licence Lemon Squeezy (activate/validate) est publique par
-	// conception (pas de clé API secrète à fournir - seule la license_key
-	// elle-même est nécessaire) : https://docs.lemonsqueezy.com/api/license-api
+	/*     * ********************** TURN (managé, abonnement Apple/Google) ******** */
+	// Offre payante : l'utilisateur n'a pas besoin de compte Cloudflare - il
+	// s'abonne directement depuis l'app (achat intégré App Store/Google
+	// Play, écran Préférences > Caméras hors LAN), qui lie l'achat au service de
+	// mint sur le VPS via jeedom::getHardwareKey() (voir
+	// src/services/iap.js côté app). Ce plugin PHP n'a donc aucune donnée
+	// d'abonnement à stocker/vérifier lui-même - il tente simplement un
+	// mint avec ce hardware_key, et le VPS répond selon l'état réel de
+	// l'abonnement (validé côté serveur auprès d'Apple/Google). Le service
+	// mine ensuite des credentials depuis UNE Turn Key Cloudflare dédiée à
+	// cette offre (compte du développeur, jamais celle de l'utilisateur),
+	// pour ne pas mélanger la conso "test perso" et la conso agrégée des
+	// abonnés dans la facturation Cloudflare.
 	//
 	// Quota 10 Go/mois suivi en octets réels côté service de mint, via
 	// l'API Analytics GraphQL de Cloudflare (chaque credential est tagué
-	// d'un customIdentifier au mint) ; le nombre de sessions par licence ne
-	// sert plus que de filet de sécurité anti-abus si l'Analytics est
+	// d'un customIdentifier au mint) ; le nombre de sessions par abonnement
+	// ne sert plus que de filet de sécurité anti-abus si l'Analytics est
 	// indisponible.
 
-	const MANAGED_TURN_MINT_URL = 'http://141.145.201.141:8090/mint';
-	const MANAGED_TURN_TRIAL_URL = 'http://141.145.201.141:8090/mint-trial';
-	const MANAGED_TURN_STATUS_URL = 'http://141.145.201.141:8090/status';
-	const LEMONSQUEEZY_LICENSE_API = 'https://api.lemonsqueezy.com/v1/licenses';
-
-	public static function getLicenseKey() {
-		return config::byKey('managedTurnLicenseKey', 'JeedomConnect', '');
-	}
-
-	private static function getLicenseInstanceId() {
-		return config::byKey('managedTurnLicenseInstanceId', 'JeedomConnect', '');
-	}
-
-	public static function isManagedTurnConfigured() {
-		return self::getLicenseKey() != '' && self::getLicenseInstanceId() != '';
-	}
-
-	/**
-	 * Active la clé de licence auprès de Lemon Squeezy (une seule fois par
-	 * clé - la limite d'activation est fixée à 1 côté Lemon Squeezy, un
-	 * second appel activate() avec la même clé échouerait). Idempotent :
-	 * si une instance est déjà enregistrée pour cette clé exacte, ne fait
-	 * rien. À appeler explicitement (bouton dédié), jamais automatiquement
-	 * à chaque sauvegarde de la page de config.
-	 *
-	 * @throws Exception si la clé est invalide ou l'activation échoue
-	 */
-	public static function activateLicense($licenseKey) {
-		$licenseKey = trim($licenseKey);
-		if ($licenseKey == '') {
-			throw new Exception(__("Clé de licence manquante", __FILE__));
-		}
-		if ($licenseKey === self::getLicenseKey() && self::getLicenseInstanceId() != '') {
-			// Déjà activée pour cette clé - rien à refaire.
-			return;
-		}
-
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, self::LEMONSQUEEZY_LICENSE_API . '/activate');
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept: application/json'));
-		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
-			'license_key' => $licenseKey,
-			// Nom d'instance : identifie cette installation Jeedom côté
-			// tableau de bord Lemon Squeezy, purement informatif.
-			'instance_name' => 'jeedom-' . jeedom::getApiKey(),
-		)));
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-		$body = curl_exec($ch);
-		$error = curl_error($ch);
-		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		curl_close($ch);
-
-		if ($error) {
-			throw new Exception('Lemon Squeezy injoignable : ' . $error);
-		}
-		$decoded = json_decode($body, true);
-		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['activated'])) {
-			$msg = $decoded['error'] ?? ('HTTP ' . $httpCode);
-			throw new Exception('Activation de la licence refusée : ' . $msg);
-		}
-		if (empty($decoded['instance']['id'])) {
-			throw new Exception('Activation réussie mais identifiant d\'instance manquant dans la réponse');
-		}
-
-		config::save('managedTurnLicenseKey', $licenseKey, 'JeedomConnect');
-		config::save('managedTurnLicenseInstanceId', $decoded['instance']['id'], 'JeedomConnect');
-	}
+	const MANAGED_TURN_MINT_URL = 'https://turn.vento.ovh/mint';
+	const MANAGED_TURN_TRIAL_URL = 'https://turn.vento.ovh/mint-trial';
+	const MANAGED_TURN_STATUS_URL = 'https://turn.vento.ovh/status';
 
 	public static function isManagedTrialStarted() {
 		return config::byKey('managedTurnTrialStarted', 'JeedomConnect', '') != '';
@@ -348,40 +281,12 @@ class Go2rtc {
 	}
 
 	/**
-	 * Sans licence activée, bascule automatiquement sur l'essai gratuit (7
-	 * jours / 4 Go, sans carte bancaire - Lemon Squeezy ne permet pas
-	 * d'essai sans CB, limitation confirmée de leur plateforme, voir plan) -
-	 * à condition que startManagedTrial() ait déjà été appelée (bouton
-	 * dédié). L'identifiant d'essai est jeedom::getHardwareKey() - la "clé
-	 * d'installation" du CORE Jeedom (pas générée par ce plugin), qui
-	 * survit à une réinstallation du plugin contrairement à un identifiant
-	 * que ce plugin aurait généré lui-même dans sa propre config.
+	 * Appel GET générique vers le service de mint managé - factorisé, utilisé
+	 * par les trois chemins (statut, abonnement store, essai gratuit).
 	 *
-	 * @param int $ttlSeconds durée de vie du credential généré
-	 * @return array un tableau iceServers (même forme que
-	 *                 mintTurnCredentials()) directement utilisable comme
-	 *                 RTCPeerConnection({iceServers: ...})
-	 * @throws Exception si l'essai n'a pas été démarré, si la
-	 *                     licence/l'essai est invalide, le quota est
-	 *                     dépassé, ou le service de mint est injoignable
+	 * @return array [decoded (array|null), httpCode (int), curlError (string), rawBody (string)]
 	 */
-	public static function mintManagedTurnCredentials($ttlSeconds) {
-		if (self::isManagedTurnConfigured()) {
-			$url = self::MANAGED_TURN_MINT_URL . '?' . http_build_query(array(
-				'license_key' => self::getLicenseKey(),
-				'instance_id' => self::getLicenseInstanceId(),
-				'ttl' => intval($ttlSeconds),
-			));
-		} else {
-			if (!self::isManagedTrialStarted()) {
-				throw new Exception(__("Essai gratuit non démarré - cliquez sur \"Démarrer mon essai gratuit\" dans la configuration du plugin", __FILE__));
-			}
-			$url = self::MANAGED_TURN_TRIAL_URL . '?' . http_build_query(array(
-				'hardware_key' => jeedom::getHardwareKey(),
-				'ttl' => intval($ttlSeconds),
-			));
-		}
-
+	private static function curlManagedTurn($url) {
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -391,25 +296,102 @@ class Go2rtc {
 		$error = curl_error($ch);
 		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
+		return array(json_decode($body, true), $httpCode, $error, $body);
+	}
 
+	/**
+	 * Transforme une réponse de mint en tableau iceServers, ou lève une
+	 * Exception (en posant au passage l'alerte centre de messages
+	 * correspondante si le service a renvoyé un code connu).
+	 *
+	 * @throws Exception
+	 */
+	private static function handleMintResponse($decoded, $httpCode, $body) {
+		if ($httpCode >= 200 && $httpCode < 300 && !empty($decoded['iceServers'])) {
+			// Mint reussi : l'abonnement/essai est valide et dans les clous -
+			// on leve toute alerte precedente du centre de messages Jeedom
+			// (l'utilisateur a corrige la situation - renouvellement,
+			// nouvel abonnement, nouveau mois qui reinitialise le quota...).
+			self::clearManagedTurnAlerts();
+			return $decoded['iceServers'];
+		}
+		$msg = (is_array($decoded) ? ($decoded['error'] ?? null) : null) ?? $body;
+		$code = is_array($decoded) ? ($decoded['code'] ?? '') : '';
+		if ($code != '') {
+			self::notifyManagedTurnIssue($code, $msg);
+		}
+		throw new Exception('Service TURN managé : ' . $msg);
+	}
+
+	/**
+	 * Tente le mint via un abonnement Apple/Google (achat intégré) - lié
+	 * directement par l'app au service de mint via hardware_key (voir
+	 * /link-subscription côté app, src/services/iap.js) : ce plugin PHP n'a
+	 * donc aucun état local à vérifier avant de tenter, la réponse du
+	 * service fait foi.
+	 *
+	 * @return array|null iceServers si un abonnement actif existe, null si
+	 *                      l'utilisateur n'a simplement aucun abonnement
+	 *                      store lié (l'appelant retombe alors sur l'essai
+	 *                      gratuit) - toute AUTRE erreur (abonnement
+	 *                      résilié/expiré, quota dépassé...) est levée
+	 *                      comme une vraie Exception : il ne faut jamais
+	 *                      masquer un abonnement cassé derrière un message
+	 *                      d'essai qui n'a rien à voir.
+	 * @throws Exception
+	 */
+	private static function tryMintSubscription($ttlSeconds) {
+		$url = self::MANAGED_TURN_MINT_URL . '?' . http_build_query(array(
+			'hardware_key' => jeedom::getHardwareKey(),
+			'ttl' => intval($ttlSeconds),
+		));
+		list($decoded, $httpCode, $error, $body) = self::curlManagedTurn($url);
 		if ($error) {
 			throw new Exception('Service TURN managé injoignable : ' . $error);
 		}
-		$decoded = json_decode($body, true);
-		if ($httpCode < 200 || $httpCode >= 300 || !is_array($decoded) || empty($decoded['iceServers'])) {
-			$msg = $decoded['error'] ?? $body;
-			$code = is_array($decoded) ? ($decoded['code'] ?? '') : '';
-			if ($code != '') {
-				self::notifyManagedTurnIssue($code, $msg);
-			}
-			throw new Exception('Service TURN managé : ' . $msg);
+		$code = is_array($decoded) ? ($decoded['code'] ?? '') : '';
+		if ($code == 'no_subscription') {
+			return null;
 		}
-		// Mint reussi : l'abonnement/essai est valide et dans les clous -
-		// on leve toute alerte precedente du centre de messages Jeedom
-		// (l'utilisateur a corrige la situation - renouvellement, nouvelle
-		// licence, nouveau mois qui reinitialise le quota...).
-		self::clearManagedTurnAlerts();
-		return $decoded['iceServers'];
+		return self::handleMintResponse($decoded, $httpCode, $body);
+	}
+
+	/**
+	 * Mine des credentials TURN pour l'offre managée - priorité à un
+	 * abonnement Apple/Google actif, repli sur l'essai gratuit (7 jours /
+	 * 4 Go, sans carte bancaire) à condition que startManagedTrial() ait
+	 * déjà été appelé (bouton dédié). L'identifiant utilisé dans les deux
+	 * cas est jeedom::getHardwareKey() - la "clé d'installation" du CORE
+	 * Jeedom (pas générée par ce plugin), qui survit à une réinstallation
+	 * du plugin contrairement à un identifiant que ce plugin aurait généré
+	 * lui-même dans sa propre config.
+	 *
+	 * @param int $ttlSeconds durée de vie du credential généré
+	 * @return array un tableau iceServers (même forme que
+	 *                 mintTurnCredentials()) directement utilisable comme
+	 *                 RTCPeerConnection({iceServers: ...})
+	 * @throws Exception si ni abonnement ni essai démarré, si l'un des
+	 *                     deux est invalide/expiré, le quota est dépassé,
+	 *                     ou le service de mint est injoignable
+	 */
+	public static function mintManagedTurnCredentials($ttlSeconds) {
+		$iceServers = self::tryMintSubscription($ttlSeconds);
+		if ($iceServers !== null) {
+			return $iceServers;
+		}
+
+		if (!self::isManagedTrialStarted()) {
+			throw new Exception(__("Essai gratuit non démarré - cliquez sur \"Démarrer mon essai gratuit\" dans la configuration du plugin", __FILE__));
+		}
+		$url = self::MANAGED_TURN_TRIAL_URL . '?' . http_build_query(array(
+			'hardware_key' => jeedom::getHardwareKey(),
+			'ttl' => intval($ttlSeconds),
+		));
+		list($decoded, $httpCode, $error, $body) = self::curlManagedTurn($url);
+		if ($error) {
+			throw new Exception('Service TURN managé injoignable : ' . $error);
+		}
+		return self::handleMintResponse($decoded, $httpCode, $body);
 	}
 
 	// logicalId utilises pour le centre de messages Jeedom (message::add) -
@@ -418,7 +400,7 @@ class Go2rtc {
 	// spammer un nouveau message a chaque camera ouverte tant que le
 	// probleme n'est pas corrige.
 	const MANAGED_TURN_ALERT_LOGICAL_IDS = array(
-		'license_invalid' => 'managedTurnLicenseInvalid',
+		'subscription_inactive' => 'managedTurnSubscriptionInactive',
 		'quota_exceeded' => 'managedTurnQuotaExceeded',
 		'trial_expired' => 'managedTurnTrialExpired',
 		'trial_quota_exceeded' => 'managedTurnTrialQuotaExceeded',
@@ -439,7 +421,7 @@ class Go2rtc {
 	 */
 	private static function notifyManagedTurnIssue($code, $fallbackMsg) {
 		$messages = array(
-			'license_invalid' => __("Votre licence JeedomConnect Cloud TURN est invalide, expirée ou non reconnue. Le mode caméra hors LAN payant est bloqué - vérifiez votre abonnement Lemon Squeezy ou réactivez votre licence depuis la configuration du plugin.", __FILE__),
+			'subscription_inactive' => __("Votre abonnement JeedomConnect Cloud TURN est inactif, résilié ou expiré. Le mode caméra hors LAN payant est bloqué - abonnez-vous depuis l'application (Préférences > Caméras hors LAN).", __FILE__),
 			'quota_exceeded' => __("Le quota mensuel de 10 Go de votre abonnement JeedomConnect Cloud TURN est atteint. Le mode caméra hors LAN payant est bloqué jusqu'au mois prochain.", __FILE__),
 			'trial_expired' => __("Votre essai gratuit de 7 jours pour le mode caméra hors LAN payant est terminé. Abonnez-vous depuis la configuration du plugin pour continuer à l'utiliser.", __FILE__),
 			'trial_quota_exceeded' => __("Le quota de 4 Go de votre essai gratuit pour le mode caméra hors LAN payant est atteint. Abonnez-vous depuis la configuration du plugin pour continuer à l'utiliser.", __FILE__),
@@ -461,39 +443,24 @@ class Go2rtc {
 	}
 
 	/**
-	 * Statut lisible par l'utilisateur (essai ou licence) pour affichage
-	 * dans la page de config - lecture seule côté service de mint, ne
-	 * consomme aucun quota. Ne fait aucun appel réseau si aucun des deux
-	 * modes n'est pertinent (pas de licence, essai jamais démarré).
+	 * Statut lisible par l'utilisateur (abonnement store ou essai) pour
+	 * affichage dans la page de config et dans l'écran Abonnement de
+	 * l'app - lecture seule côté service de mint, ne consomme aucun
+	 * quota. Le service de mint priorise lui-même l'abonnement store sur
+	 * l'essai s'il existe (voir _status_subscription côté VPS).
 	 *
-	 * @return array|null null si rien à afficher (essai jamais démarré et
-	 *                      pas de licence), sinon un tableau associatif
-	 *                      normalisé pour le JS :
-	 *                      {mode:'license'|'trial', ...}
+	 * @return array toujours un tableau associatif normalisé pour le JS :
+	 *                {mode:'subscription', status:'active'|..., ...} ou
+	 *                {mode:'trial', started:bool, ...}
+	 * @throws Exception si le service de mint est injoignable
 	 */
 	public static function getManagedTurnStatus() {
-		if (self::isManagedTurnConfigured()) {
-			$query = array('license_key' => self::getLicenseKey());
-		} elseif (self::isManagedTrialStarted()) {
-			$query = array('hardware_key' => jeedom::getHardwareKey());
-		} else {
-			return null;
-		}
-
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, self::MANAGED_TURN_STATUS_URL . '?' . http_build_query($query));
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-		$body = curl_exec($ch);
-		$error = curl_error($ch);
-		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		curl_close($ch);
-
+		$url = self::MANAGED_TURN_STATUS_URL . '?' . http_build_query(array('hardware_key' => jeedom::getHardwareKey()));
+		list($decoded, $httpCode, $error) = self::curlManagedTurn($url);
 		if ($error || $httpCode < 200 || $httpCode >= 300) {
 			throw new Exception('Service TURN managé injoignable : ' . ($error ?: ('HTTP ' . $httpCode)));
 		}
-		return json_decode($body, true);
+		return $decoded;
 	}
 
 	/*     * ********************** WEBRTC BRIDGE (HTTP -> go2rtc/api/ws) ******** */
@@ -633,7 +600,7 @@ class Go2rtc {
 		// caméra complet, pas juste de la signalisation). Doit donc utiliser
 		// le MÊME fournisseur que turnMode, sans quoi le trafic réel passerait
 		// par la mauvaise Turn Key (perso au lieu de managée, ou inversement),
-		// sans passer par la validation licence/quota/essai côté managé.
+		// sans passer par la validation abonnement/quota/essai côté managé.
 		// Credential longue durée (pas celle, courte, de
 		// mintClientTurnCredentials côté app) car cette config est statique -
 		// lue au démarrage du démon, jamais rafraîchie à chaud. Minée une

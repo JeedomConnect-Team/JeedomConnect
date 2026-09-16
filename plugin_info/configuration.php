@@ -188,7 +188,7 @@ sendVarToJS('userHash', $userHash);
     <br />
     <!-- TURN HORS LAN -->
     <div class="row alert alert-info" style="text-align:center;">
-      Relais TURN pour le flux caméra WebRTC hors LAN (widgets caméra avec "Flux vidéo optimisé (go2rtc)").<br />
+      Accéder aux caméras hors du LAN avec une connexion chiffrée (widgets caméra avec "Flux vidéo optimisé (go2rtc)").<br />
       Facultatif - sans configuration, le flux hors LAN reste en MSE.
     </div>
     <div class="row">
@@ -197,7 +197,7 @@ sendVarToJS('userHash', $userHash);
         <div class="col-lg-9">
           <select class="form-control configKey needJCRefresh" id="turnModeSelect" data-l1key="turnMode">
             <option value="cloudflare">{{Gratuit - mon propre compte Cloudflare}}</option>
-            <option value="managed">{{Payant - abonnement géré (6€/an, 10 Go/mois)}}</option>
+            <option value="managed">{{Payant - abonnement géré (~6€/an, 10 Go/mois)}}</option>
           </select>
         </div>
       </div>
@@ -249,9 +249,7 @@ sendVarToJS('userHash', $userHash);
       <div class="row well well-sm" style="text-align:center;">
         Aucun compte Cloudflare nécessaire.<br />
         <b>Essai gratuit de 7 jours / 4 Go, sans carte bancaire</b> - à démarrer explicitement ci-dessous.<br />
-        Passé ce délai (ou 6€/an pour un accès illimité dans le temps, 10 Go/mois) :
-        <a href="https://jeedomconnect.lemonsqueezy.com/checkout/buy/936fce42-c308-4846-af72-fe8d58a23cf9" id="subscribeManagedTurn" target="_blank">S'abonner <i class="fas fa-external-link-alt"></i></a>
-        - une clé de licence vous sera envoyée par e-mail.
+        Passé ce délai (ou ~6€/an pour un accès illimité dans le temps, 10 Go/mois) : ouvrez l'application JeedomConnect sur votre téléphone, puis <b>Préférences &gt; Caméras hors LAN</b> - l'abonnement s'achète et se gère directement depuis l'App Store / Google Play.
       </div>
       <div class="row" id="managedTurnStatusRow" style="display:none;">
         <div class="form-group col-lg-12">
@@ -265,25 +263,12 @@ sendVarToJS('userHash', $userHash);
         </div>
       </div>
       <div class="row">
-        <div class="form-group col-lg-6">
-          <label class="col-lg-6 control-label">{{Clé de licence}}
-            <sup>
-              <i class="fas fa-question-circle floatright" title="Clé de licence reçue par e-mail après souscription à l'abonnement. Laisser vide pendant l'essai gratuit."></i>
-            </sup>
-          </label>
-          <div class="col-lg-6">
-            <input class="configKey form-control needJCRefresh" type="password" autocomplete="new-password" data-l1key="managedTurnLicenseKey" id="managedTurnLicenseKeyInput" />
-          </div>
-        </div>
-        <div class="form-group col-lg-6">
-          <a class="btn btn-default" id="activateManagedTurn"><i class="fas fa-key"></i> {{Activer ma licence}}</a>
-          <span class="alert-inline-msg" id="activateManagedTurnResult" style="margin-left:10px;"></span>
-        </div>
-      </div>
-      <div class="row">
         <div class="form-group col-lg-12" style="text-align:center;">
-          <a class="btn btn-default" id="testManagedTurn"><i class="fas fa-vial"></i> {{Tester ma licence}}</a>
+          <a class="btn btn-default" id="testManagedTurn"><i class="fas fa-vial"></i> {{Tester mon accès}}</a>
           <span class="alert-inline-msg" id="testManagedTurnResult" style="margin-left:10px;"></span>
+          <sup>
+            <i class="fas fa-question-circle floatright" title="Vérifie l'obtention d'identifiants TURN via l'abonnement actif ou, à défaut, l'essai gratuit."></i>
+          </sup>
         </div>
       </div>
     </div>

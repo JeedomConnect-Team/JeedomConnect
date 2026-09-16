@@ -22,10 +22,10 @@ function JC_fmtBytes(bytes) {
     return mo.toFixed(2) + ' Mo';
 }
 
-// Charge et affiche le statut essai/licence managé (lecture seule, ne
+// Charge et affiche le statut essai/abonnement managé (lecture seule, ne
 // consomme aucun quota côté service de mint) - appelé au chargement de la
 // page et après toute action susceptible de changer ce statut (démarrage
-// d'essai, activation/test de licence).
+// ou test de l'essai gratuit).
 function JC_loadManagedTurnStatus() {
     var $row = $('#managedTurnStatusRow');
     var $box = $('#managedTurnStatusBox');
@@ -40,17 +40,19 @@ function JC_loadManagedTurnStatus() {
         dataType: 'json',
         success: function (data) {
             if (data.state != 'ok' || !data.result) {
-                // Ni essai démarré, ni licence activée - le bouton de
-                // démarrage d'essai garde tout son sens, on le laisse visible.
                 $trialRow.show();
                 $row.hide();
                 return;
             }
             var s = data.result;
-            // L'essai est démarré (quel que soit son état - actif/expiré) ou
-            // une licence est active : redémarrer l'essai n'a plus de sens,
-            // on masque le bouton.
-            $trialRow.toggle(s.mode !== 'trial' && s.mode !== 'license');
+            if (s.mode === 'trial' && !s.started) {
+                // Ni essai démarré, ni abonnement store lié - le bouton de
+                // démarrage d'essai garde tout son sens, on le laisse visible.
+                $trialRow.show();
+                $row.hide();
+                return;
+            }
+            $trialRow.hide();
             var html = '';
             var alertClass = 'alert-info';
 
@@ -62,11 +64,9 @@ function JC_loadManagedTurnStatus() {
             var hasByteUsage = (typeof s.bytesUsed === 'number' && typeof s.bytesMax === 'number');
 
             if (s.mode === 'trial') {
-                if (!s.started) {
-                    html = '<i class="fas fa-hourglass-half"></i> Essai gratuit démarré - pas encore utilisé (ouvrez une caméra hors LAN pour l\'activer).';
-                } else if (s.expired) {
+                if (s.expired) {
                     alertClass = 'alert-warning';
-                    html = '<i class="fas fa-exclamation-triangle"></i> Essai gratuit expiré - abonnez-vous pour continuer à utiliser ce mode.';
+                    html = '<i class="fas fa-exclamation-triangle"></i> Essai gratuit expiré - abonnez-vous depuis l\'application (Préférences &gt; Caméras hors LAN) pour continuer à utiliser ce mode.';
                 } else {
                     var usageTxt = hasByteUsage
                         ? JC_fmtBytes(s.bytesUsed) + ' / ' + (s.bytesMax / 1073741824).toFixed(0) + ' Go utilisés'
@@ -74,7 +74,7 @@ function JC_loadManagedTurnStatus() {
                     html = '<i class="fas fa-hourglass-half"></i> Essai gratuit en cours : <b>' + s.daysRemaining + ' jour(s) restant(s)</b>'
                         + ' - ' + usageTxt + '.';
                 }
-            } else if (s.mode === 'license') {
+            } else if (s.mode === 'subscription') {
                 var usageTxt;
                 if (hasByteUsage) {
                     var remainingBytes = Math.max(0, s.bytesMax - s.bytesUsed);
@@ -84,12 +84,21 @@ function JC_loadManagedTurnStatus() {
                     var remaining = Math.max(0, s.sessionsMax - s.sessionsUsed);
                     usageTxt = s.sessionsUsed + '/' + s.sessionsMax + ' sessions utilisées ce mois (~10 Go), ' + remaining + ' restantes';
                 }
+                var statusTxt = 'Abonnement actif';
+                if (s.status !== 'active') {
+                    // grace_period/billing_retry : probleme de paiement en
+                    // cours, encore dans la fenetre de tolerance Apple/Google
+                    // (voir SUBSCRIPTION_ACTIVE_STATUSES cote VPS) - pas
+                    // encore bloquant mais merite d'attirer l'oeil.
+                    alertClass = 'alert-warning';
+                    statusTxt = 'Abonnement actif (problème de paiement en cours)';
+                }
+                var platformTxt = s.platform === 'ios' ? ' via App Store' : (s.platform === 'android' ? ' via Google Play' : '');
                 // expiresAt : date de renouvellement normal, OU date de fin
                 // de periode de grace si l'abonnement a ete resilie entre-
-                // temps (Lemon Squeezy garde la licence "active" jusque-la -
-                // voir _validate_license cote VPS) - on ne peut pas
-                // distinguer les deux cas depuis ce seul champ, d'ou une
-                // formulation neutre ("valide jusqu'au") plutot que
+                // temps (le statut Apple/Google reste actif jusque-la) - on
+                // ne peut pas distinguer les deux cas depuis ce seul champ,
+                // d'ou une formulation neutre ("valide jusqu'au") plutot que
                 // d'annoncer un renouvellement qui n'aura peut-etre pas lieu.
                 var expiresTxt = '';
                 if (s.expiresAt) {
@@ -98,7 +107,7 @@ function JC_loadManagedTurnStatus() {
                         expiresTxt = ' Accès valide jusqu\'au ' + expDate.toLocaleDateString('fr-FR') + '.';
                     }
                 }
-                html = '<i class="fas fa-check-circle"></i> Abonnement actif - ' + usageTxt + '.' + expiresTxt;
+                html = '<i class="fas fa-check-circle"></i> ' + statusTxt + platformTxt + ' - ' + usageTxt + '.' + expiresTxt;
             } else {
                 $row.hide();
                 return;
@@ -146,35 +155,6 @@ $('.jeedomConnect').off('click', '#startManagedTrial').on('click', '#startManage
     });
 })
 
-$('.jeedomConnect').off('click', '#activateManagedTurn').on('click', '#activateManagedTurn', function () {
-    var $btn = $(this);
-    var $result = $('#activateManagedTurnResult');
-    $result.removeClass('text-success text-danger').text('');
-    $btn.prop('disabled', true);
-
-    $.post({
-        url: "plugins/JeedomConnect/core/ajax/jeedomConnect.ajax.php",
-        data: {
-            action: 'activateLicense'
-        },
-        cache: false,
-        dataType: 'json',
-        success: function (data) {
-            $btn.prop('disabled', false);
-            if (data.state != 'ok') {
-                $result.addClass('text-danger').html('<i class="fas fa-times-circle"></i> ' + data.result);
-            } else {
-                $result.addClass('text-success').html('<i class="fas fa-check-circle"></i> Licence activée avec succès.');
-                JC_loadManagedTurnStatus();
-            }
-        },
-        error: function () {
-            $btn.prop('disabled', false);
-            $result.addClass('text-danger').html('<i class="fas fa-times-circle"></i> Erreur inattendue, vérifiez les logs du plugin.');
-        }
-    });
-})
-
 $('.jeedomConnect').off('click', '#testManagedTurn').on('click', '#testManagedTurn', function () {
     var $btn = $(this);
     var $result = $('#testManagedTurnResult');
@@ -193,7 +173,7 @@ $('.jeedomConnect').off('click', '#testManagedTurn').on('click', '#testManagedTu
             if (data.state != 'ok') {
                 $result.addClass('text-danger').html('<i class="fas fa-times-circle"></i> ' + data.result);
             } else {
-                $result.addClass('text-success').html('<i class="fas fa-check-circle"></i> Licence valide, credentials TURN obtenus avec succès.');
+                $result.addClass('text-success').html('<i class="fas fa-check-circle"></i> Accès valide, identifiants TURN obtenus avec succès.');
                 JC_loadManagedTurnStatus();
             }
         },

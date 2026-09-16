@@ -252,12 +252,80 @@ class apiHelper {
           // Le fournisseur n'est JAMAIS choisi par l'app ni par un paramètre
           // de la requête, uniquement par le réglage serveur (page de config
           // du plugin) : 'cloudflare' (offre gratuite BYO, défaut) ou
-          // 'managed' (offre payante Lemon Squeezy). Les URLs du service de
-          // mint managé sont visibles dans ce fichier (lisible par tout
+          // 'managed' (offre payante, abonnement Apple/Google géré via
+          // l'app). Les URLs du service de mint managé sont visibles dans ce
+          // fichier (lisible par tout
           // utilisateur Jeedom) - un appel API direct (avec sa propre
           // apiKey) ne doit donc pas pouvoir forcer un autre mode que celui
           // explicitement choisi dans la config.
           return self::cameraTurnCredentials(config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
+          break;
+
+        case 'GET_HARDWARE_KEY':
+          // Identifiant d'installation Jeedom, déjà utilisé côté essai
+          // gratuit managé (voir Go2rtc::mintManagedTurnCredentials) - même
+          // valeur, exposée ici pour que l'app puisse l'associer à un achat
+          // intégré (abonnement Apple/Google) sans jamais avoir à la saisir
+          // manuellement.
+          return array('hardwareKey' => jeedom::getHardwareKey());
+          break;
+
+        case 'GET_MANAGED_TURN_STATUS':
+          return self::managedTurnStatus();
+          break;
+
+        case 'GET_TURN_MODE':
+          return array('mode' => config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
+          break;
+
+        case 'SET_TURN_MODE':
+          $mode = $param['mode'] ?? '';
+          if (!in_array($mode, array('cloudflare', 'managed'), true)) {
+            return self::raiseException('Mode invalide', 'SET_TURN_MODE');
+          }
+          config::save('turnMode', $mode, 'JeedomConnect');
+          return null;
+          break;
+
+        case 'START_MANAGED_TRIAL':
+          Go2rtc::startManagedTrial();
+          return null;
+          break;
+
+        case 'GET_CLOUDFLARE_TURN_CONFIG':
+          // L'API Token n'est JAMAIS renvoyé à l'app (comme le champ mot de
+          // passe équivalent de la config web) - seul le Turn Key ID
+          // (identifiant, pas un secret) et un booléen indiquant si un
+          // jeton est déjà enregistré.
+          return array(
+            'turnKeyId' => Go2rtc::getTurnKeyId(),
+            'configured' => Go2rtc::isTurnConfigured(),
+          );
+          break;
+
+        case 'SET_CLOUDFLARE_TURN_CONFIG':
+          $turnKeyId = trim($param['turnKeyId'] ?? '');
+          $apiToken = trim($param['apiToken'] ?? '');
+          config::save('cloudflareTurnKeyId', $turnKeyId, 'JeedomConnect');
+          // Un jeton vide laisse le jeton déjà enregistré inchangé (comme un
+          // champ mot de passe classique) - il n'est de toute façon jamais
+          // renvoyé à l'app, donc pas de moyen de le "confirmer" autrement
+          // qu'en le retapant intégralement.
+          if ($apiToken != '') {
+            config::save('cloudflareTurnApiToken', $apiToken, 'JeedomConnect');
+          }
+          return null;
+          break;
+
+        case 'RESTART_GO2RTC':
+          // Même action que le bouton "Redémarrer go2rtc" de la config web -
+          // notamment utile après un changement de mode TURN.
+          try {
+            Go2rtc::start();
+            return null;
+          } catch (Exception $e) {
+            return self::raiseException($e->getMessage(), 'RESTART_GO2RTC');
+          }
           break;
 
         case 'ADD_WIDGETS':
@@ -1552,6 +1620,20 @@ class apiHelper {
       return array('iceServers' => Go2rtc::mintClientTurnCredentials($provider));
     } catch (Exception $e) {
       return self::raiseException($e->getMessage(), 'CAMERA_TURN_CREDENTIALS');
+    }
+  }
+
+  /**
+   * Statut d'essai/abonnement managé pour l'écran "Abonnement" de l'app -
+   * ne consomme aucun quota (lecture seule côté service de mint). Renvoie
+   * null si rien à afficher (essai jamais démarré et pas d'abonnement),
+   * jamais une exception dans ce cas précis.
+   */
+  private static function managedTurnStatus() {
+    try {
+      return Go2rtc::getManagedTurnStatus();
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'GET_MANAGED_TURN_STATUS');
     }
   }
 

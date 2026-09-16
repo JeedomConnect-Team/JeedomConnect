@@ -265,32 +265,13 @@ try {
 		}
 	}
 
-	if (init('action') == 'activateLicense') {
-		// Active (une seule fois par clé) la licence Lemon Squeezy de l'offre
-		// payante managée - voir Go2rtc::activateLicense(). Porte sur la clé
-		// ENREGISTRÉE (sauvegardez la page après avoir collé la clé, puis
-		// cliquez sur "Activer") - même logique que testCloudflareTurn.
-		// Volontairement déclenché par un bouton dédié, jamais
-		// automatiquement à la sauvegarde de la page (la limite
-		// d'activation Lemon Squeezy est fixée à 1 par clé).
-		if (Go2rtc::getLicenseKey() == '') {
-			ajax::error("Renseignez d'abord votre clé de licence, puis enregistrez la page avant d'activer.");
-		}
-		try {
-			Go2rtc::activateLicense(Go2rtc::getLicenseKey());
-			ajax::success();
-		} catch (Exception $e) {
-			ajax::error("Échec : " . $e->getMessage());
-		}
-	}
-
 	if (init('action') == 'startManagedTrial') {
 		Go2rtc::startManagedTrial();
 		ajax::success();
 	}
 
 	if (init('action') == 'testManagedTurn') {
-		// Sans licence activée, mintManagedTurnCredentials() bascule
+		// Sans abonnement store actif, mintManagedTurnCredentials() bascule
 		// automatiquement sur l'essai gratuit - rien à vérifier ici, ce
 		// bouton doit fonctionner dans les deux cas.
 		try {
