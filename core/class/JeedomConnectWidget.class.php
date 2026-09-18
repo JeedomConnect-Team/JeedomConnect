@@ -300,6 +300,21 @@ class JeedomConnectWidget extends config {
 			$cpl = ' [new creation]';
 		}
 
+		if (($conf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($conf)
+			&& empty($conf['cloudflareTunnelHostname'] ?? null) && !empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Le formulaire d'édition ne soumet jamais ce champ (aucun input
+			// dédié - posé plus bas par CloudflareTunnel::registerRoute(),
+			// jamais par l'utilisateur) : sans ce report depuis la conf
+			// stockée, TOUTE sauvegarde normale du widget (même un simple
+			// renommage) effaçait silencieusement le hostname de Jeedom, alors
+			// que le tunnel reste parfaitement actif côté service VPS -
+			// Jeedom "oubliait" juste où le trouver, cassant l'accès hors LAN
+			// jusqu'à une resauvegarde qui change réellement localUrl (seul
+			// déclencheur de cloudflareTunnelRegistrationNeeded() qui le
+			// régénère).
+			$conf['cloudflareTunnelHostname'] = $previousConf['cloudflareTunnelHostname'];
+		}
+
 		JCLog::debug('saveConfiguration details received for id : ' . $widgetId . $cpl . ' - conf : ' . json_encode($conf));
 		try {
 			config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
