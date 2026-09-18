@@ -251,9 +251,9 @@ class Go2rtc {
 	// ne sert plus que de filet de sécurité anti-abus si l'Analytics est
 	// indisponible.
 
-	const MANAGED_TURN_MINT_URL = 'https://turn.vento.ovh/mint';
-	const MANAGED_TURN_TRIAL_URL = 'https://turn.vento.ovh/mint-trial';
-	const MANAGED_TURN_STATUS_URL = 'https://turn.vento.ovh/status';
+	const MANAGED_TURN_MINT_URL = 'https://turn.jeedomconnect.stream/mint';
+	const MANAGED_TURN_TRIAL_URL = 'https://turn.jeedomconnect.stream/mint-trial';
+	const MANAGED_TURN_STATUS_URL = 'https://turn.jeedomconnect.stream/status';
 
 	public static function isManagedTrialStarted() {
 		return config::byKey('managedTurnTrialStarted', 'JeedomConnect', '') != '';

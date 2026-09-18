@@ -254,6 +254,42 @@ class JeedomConnectWidget extends config {
 		return false;
 	}
 
+	// Un widget webview a besoin d'un tunnel hors-LAN exactement dans les
+	// mêmes conditions que useProxy côté app (useUri() dans
+	// components.js) : une localUrl renseignée, aucune url publique, et
+	// aucune commande urlCmd (valeur dynamique explicitement gérée par
+	// l'admin, jamais tunnelée).
+	private static function webviewNeedsTunnel($conf) {
+		return !empty($conf['localUrl']) && empty($conf['url']) && empty($conf['urlCmd']);
+	}
+
+	private static function cloudflareTunnelRegistrationNeeded($previousConf, $conf) {
+		$neededBefore = $previousConf !== null && self::webviewNeedsTunnel($previousConf);
+		$neededNow = self::webviewNeedsTunnel($conf);
+		if ($neededNow && !$neededBefore) {
+			return 'register';
+		}
+		if ($neededNow && ($previousConf['localUrl'] ?? null) != ($conf['localUrl'] ?? null)) {
+			// Cible LAN modifiée alors que le tunnel était déjà actif - la
+			// route existante doit pointer vers la nouvelle cible.
+			return 'register';
+		}
+		if ($neededNow && empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Rattrape un premier enregistrement resté en échec (ex: quota
+			// atteint à la création du widget) : sans ce cas, une simple
+			// resauvegarde sans toucher à localUrl ne retentait jamais
+			// registerRoute(), même après avoir levé le quota. On vérifie
+			// previousConf (la conf STOCKÉE), pas $conf (la soumission du
+			// client) : ce champ n'a pas d'input dédié et ne revient donc
+			// jamais dans $conf - voir saveConfig() plus bas.
+			return 'register';
+		}
+		if (!$neededNow && $neededBefore) {
+			return 'unregister';
+		}
+		return null;
+	}
+
 	public static function saveConfig($conf, $widgetId = null) {
 
 		$cpl = '';
@@ -286,6 +322,29 @@ class JeedomConnectWidget extends config {
 				Go2rtc::registerStream($widgetId, $conf);
 			} catch (Exception $e) {
 				JCLog::error('go2rtc registerStream error : ' . $e->getMessage());
+			}
+		}
+
+		if (($conf['type'] ?? '') == 'webview') {
+			// Même chokepoint, même principe de filtrage que go2rtc
+			// ci-dessus - voir cloudflareTunnelRegistrationNeeded().
+			$action = self::cloudflareTunnelRegistrationNeeded($previousConf, $conf);
+			if ($action == 'register') {
+				try {
+					$hostname = CloudflareTunnel::registerRoute($widgetId, $conf['localUrl']);
+					// Persisté sur la conf DE CE WIDGET (comme localUrl) - un
+					// second config::save ciblé plutôt que de retarder le
+					// premier plus haut, pour ne pas bloquer la sauvegarde du
+					// widget lui-même si l'appel au service tunnel échoue.
+					$conf['cloudflareTunnelHostname'] = $hostname;
+					config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
+				} catch (Exception $e) {
+					JCLog::error('CloudflareTunnel registerRoute error : ' . $e->getMessage());
+				}
+			} elseif ($action == 'unregister') {
+				CloudflareTunnel::unregisterRoute($widgetId);
+				unset($conf['cloudflareTunnelHostname']);
+				config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
 			}
 		}
 
@@ -366,6 +425,9 @@ class JeedomConnectWidget extends config {
 				} catch (Exception $e) {
 					JCLog::error('go2rtc unregisterStream error : ' . $e->getMessage());
 				}
+			}
+			if (($removedConf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($removedConf ?? array())) {
+				CloudflareTunnel::unregisterRoute($idToRemove, true);
 			}
 			self::removeWidgetConf('widget::' . $idToRemove);
 		}

@@ -297,6 +297,30 @@ try {
 		}
 	}
 
+	if (init('action') == 'getTunnelOverview') {
+		try {
+			$overview = CloudflareTunnel::getWidgetsOverview();
+			$overview['daemon'] = CloudflareTunnel::info();
+			ajax::success($overview);
+		} catch (Exception $e) {
+			ajax::error("Échec : " . $e->getMessage());
+		}
+	}
+
+	if (init('action') == 'restartCloudflaredTunnel') {
+		// Meme principe que restartGo2rtc juste au-dessus : le tunnel n'a
+		// pas de widget de démon natif Jeedom sur la page équipement (il
+		// n'est associé à aucun équipement en particulier), ce bouton dédié
+		// est le seul moyen pour l'admin de le relancer manuellement (ex:
+		// après un souci réseau côté box Jeedom).
+		try {
+			CloudflareTunnel::ensureStarted(true);
+			ajax::success();
+		} catch (Exception $e) {
+			ajax::error("Échec du redémarrage du tunnel : " . $e->getMessage());
+		}
+	}
+
 	if (init('action') == 'getWidgetMass') {
 		$ids = init('id') ?? 'all';
 		$allWidgets = JeedomConnectWidget::getWidgets($ids);
