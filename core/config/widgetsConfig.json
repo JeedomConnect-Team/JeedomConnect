@@ -5220,6 +5220,28 @@
 					"category": "binary"
 				},
 				{
+					"id": "webrtcEnabled",
+					"name": "Flux vidéo optimisé (go2rtc)",
+					"required": false,
+					"category": "binary",
+					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP/Snapshot classique."
+				},
+				{
+					"id": "networkCaching",
+					"name": "Mise en cache réseau (ms)",
+					"required": false,
+					"category": "string",
+					"description": "300ms par défaut. Augmenter en cas de saccades sur réseau instable, réduire pour moins de latence"
+				},
+				{
+					"id": "disableHwDecoder",
+					"name": "Désactiver le décodage matériel (iOS)",
+					"required": false,
+					"category": "binary",
+					"description": "À activer uniquement si l'image reste noire sur cette caméra. Bascule sur un décodage logiciel, plus gourmand en CPU",
+					"customizable": true
+				},
+				{
 					"id": "authent",
 					"name": "Authentification Snapshot",
 					"required": false,
@@ -5261,14 +5283,14 @@
 					"name": "Rafraîchissement",
 					"required": false,
 					"category": "string",
-					"description": "Durée en seconde entre deux images (1s par défaut)"
+					"description": "Durée en seconde entre deux images (3s par défaut)"
 				},
 				{
 					"id": "compress",
 					"name": "Qualité SnapShot (%)",
 					"required": false,
 					"category": "string",
-					"description": "100% par défaut (haute qualité)"
+					"description": "70% par défaut"
 				},
 				{
 					"id": "resize",

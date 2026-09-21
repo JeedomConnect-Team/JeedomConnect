@@ -48,6 +48,25 @@ class JeedomConnectWidget extends config {
 		return utils::getJsonAttr($conf, $_key, $_default);
 	}
 
+	/**
+	 * Résout une URL de widget caméra (flux ou snapshot) : soit une valeur
+	 * texte statique ($_urlKey), soit dynamique via une commande Jeedom
+	 * ($_urlInfoKey, ex "streamUrlInfo"/"snapshotUrlInfo" -> execCmd()).
+	 * Logique partagée par snapshot.php et Go2rtc::registerStream().
+	 */
+	public static function resolveConfUrl($conf, $_urlKey, $_urlInfoKey) {
+		$url = $conf[$_urlKey] ?? '';
+
+		if (isset($conf[$_urlInfoKey])) {
+			$cmdId = $conf[$_urlInfoKey]['id'];
+			$cmd = cmd::byId($cmdId);
+			if (is_object($cmd)) {
+				$url = $cmd->execCmd();
+			}
+		}
+		return $url;
+	}
+
 	public static function getJsonData($_data, $_key = '', $_default = '') {
 
 		// JCLog::info( ' ##  getJsonData  -- data received => ' . json_encode($_data) );
@@ -217,12 +236,83 @@ class JeedomConnectWidget extends config {
 		}
 	}
 
+	// Champs dont la modification justifie de rappeler l'API go2rtc (voir
+	// saveConfig()) - tout le reste (nom, sous-titre, ratio, refreshInterval
+	// du snapshot...) n'a aucun effet sur l'enregistrement du flux WebRTC.
+	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password');
+
+	private static function go2rtcRegistrationNeeded($previousConf, $conf) {
+		if ($previousConf === null) {
+			// nouvelle création : seulement pertinent si déjà coché à la création
+			return !empty($conf['webrtcEnabled']);
+		}
+		foreach (self::$_go2rtcRelevantKeys as $key) {
+			if (($previousConf[$key] ?? null) != ($conf[$key] ?? null)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Un widget webview a besoin d'un tunnel hors-LAN exactement dans les
+	// mêmes conditions que useProxy côté app (useUri() dans
+	// components.js) : une localUrl renseignée, aucune url publique, et
+	// aucune commande urlCmd (valeur dynamique explicitement gérée par
+	// l'admin, jamais tunnelée).
+	private static function webviewNeedsTunnel($conf) {
+		return !empty($conf['localUrl']) && empty($conf['url']) && empty($conf['urlCmd']);
+	}
+
+	private static function cloudflareTunnelRegistrationNeeded($previousConf, $conf) {
+		$neededBefore = $previousConf !== null && self::webviewNeedsTunnel($previousConf);
+		$neededNow = self::webviewNeedsTunnel($conf);
+		if ($neededNow && !$neededBefore) {
+			return 'register';
+		}
+		if ($neededNow && ($previousConf['localUrl'] ?? null) != ($conf['localUrl'] ?? null)) {
+			// Cible LAN modifiée alors que le tunnel était déjà actif - la
+			// route existante doit pointer vers la nouvelle cible.
+			return 'register';
+		}
+		if ($neededNow && empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Rattrape un premier enregistrement resté en échec (ex: quota
+			// atteint à la création du widget) : sans ce cas, une simple
+			// resauvegarde sans toucher à localUrl ne retentait jamais
+			// registerRoute(), même après avoir levé le quota. On vérifie
+			// previousConf (la conf STOCKÉE), pas $conf (la soumission du
+			// client) : ce champ n'a pas d'input dédié et ne revient donc
+			// jamais dans $conf - voir saveConfig() plus bas.
+			return 'register';
+		}
+		if (!$neededNow && $neededBefore) {
+			return 'unregister';
+		}
+		return null;
+	}
+
 	public static function saveConfig($conf, $widgetId = null) {
 
 		$cpl = '';
-		if (is_null($widgetId)) {
+		$isNew = is_null($widgetId);
+		$previousConf = $isNew ? null : self::getConfiguration($widgetId, '', null);
+		if ($isNew) {
 			$widgetId = self::incrementIndex();
 			$cpl = ' [new creation]';
+		}
+
+		if (($conf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($conf)
+			&& empty($conf['cloudflareTunnelHostname'] ?? null) && !empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Le formulaire d'édition ne soumet jamais ce champ (aucun input
+			// dédié - posé plus bas par CloudflareTunnel::registerRoute(),
+			// jamais par l'utilisateur) : sans ce report depuis la conf
+			// stockée, TOUTE sauvegarde normale du widget (même un simple
+			// renommage) effaçait silencieusement le hostname de Jeedom, alors
+			// que le tunnel reste parfaitement actif côté service VPS -
+			// Jeedom "oubliait" juste où le trouver, cassant l'accès hors LAN
+			// jusqu'à une resauvegarde qui change réellement localUrl (seul
+			// déclencheur de cloudflareTunnelRegistrationNeeded() qui le
+			// régénère).
+			$conf['cloudflareTunnelHostname'] = $previousConf['cloudflareTunnelHostname'];
 		}
 
 		JCLog::debug('saveConfiguration details received for id : ' . $widgetId . $cpl . ' - conf : ' . json_encode($conf));
@@ -233,6 +323,46 @@ class JeedomConnectWidget extends config {
 			return null;
 		}
 		JCLog::debug('saveConfiguration done');
+
+		if (($conf['type'] ?? '') == 'camera' && self::go2rtcRegistrationNeeded($previousConf, $conf)) {
+			// POC go2rtc : saveConfig() est le seul chokepoint commun à tous les
+			// chemins de sauvegarde d'un widget (SET_WIDGET, création via
+			// addGlobalWidgets, updateConfig...) - contrairement à
+			// updateWidgetConfig(), qui n'est pas systématiquement appelée (ex:
+			// création d'un nouveau widget caméra). Filtré aux changements
+			// réellement pertinents pour éviter un appel réseau à go2rtc (et un
+			// éventuel démarrage du démon) à chaque sauvegarde d'un widget
+			// caméra, même pour un simple renommage.
+			try {
+				Go2rtc::registerStream($widgetId, $conf);
+			} catch (Exception $e) {
+				JCLog::error('go2rtc registerStream error : ' . $e->getMessage());
+			}
+		}
+
+		if (($conf['type'] ?? '') == 'webview') {
+			// Même chokepoint, même principe de filtrage que go2rtc
+			// ci-dessus - voir cloudflareTunnelRegistrationNeeded().
+			$action = self::cloudflareTunnelRegistrationNeeded($previousConf, $conf);
+			if ($action == 'register') {
+				try {
+					$hostname = CloudflareTunnel::registerRoute($widgetId, $conf['localUrl']);
+					// Persisté sur la conf DE CE WIDGET (comme localUrl) - un
+					// second config::save ciblé plutôt que de retarder le
+					// premier plus haut, pour ne pas bloquer la sauvegarde du
+					// widget lui-même si l'appel au service tunnel échoue.
+					$conf['cloudflareTunnelHostname'] = $hostname;
+					config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
+				} catch (Exception $e) {
+					JCLog::error('CloudflareTunnel registerRoute error : ' . $e->getMessage());
+				}
+			} elseif ($action == 'unregister') {
+				CloudflareTunnel::unregisterRoute($widgetId);
+				unset($conf['cloudflareTunnelHostname']);
+				config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
+			}
+		}
+
 		return $widgetId;
 	}
 
@@ -298,6 +428,22 @@ class JeedomConnectWidget extends config {
 		}
 
 		foreach ($arrayIdToRemove as $idToRemove) {
+			// go2rtc : désenregistre le flux avant suppression, sinon une entrée
+			// orpheline reste indéfiniment dans la config go2rtc pour un widget
+			// qui n'existe plus. Appel sans risque même si le widget n'était pas
+			// en webrtcEnabled (unregisterStream() est un no-op si le stream
+			// n'existe pas).
+			$removedConf = self::getConfiguration($idToRemove, '', null);
+			if (($removedConf['type'] ?? '') == 'camera') {
+				try {
+					Go2rtc::unregisterStream($idToRemove);
+				} catch (Exception $e) {
+					JCLog::error('go2rtc unregisterStream error : ' . $e->getMessage());
+				}
+			}
+			if (($removedConf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($removedConf ?? array())) {
+				CloudflareTunnel::unregisterRoute($idToRemove, true);
+			}
 			self::removeWidgetConf('widget::' . $idToRemove);
 		}
 

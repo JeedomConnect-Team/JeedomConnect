@@ -1,6 +1,7 @@
 {
-	"version": "1.21.1",
-	"require": "1.20.0",
+
+	"version": "1.29.1",
+	"require": "1.28.1",
 	"tag_notifBin_beta": "vNotif_2",
 	"tag_notifBin_stable": "vNotif_2"
 }

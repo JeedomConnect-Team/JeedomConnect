@@ -19,7 +19,7 @@
 require_once dirname(__FILE__) . "/../../../../core/php/core.inc.php";
 
 class apiHelper {
-  public static $_skipLog = array('GET_EVENTS', 'GET_LOG');
+  public static $_skipLog = array('GET_EVENTS', 'GET_LOG', 'SET_FACE_DETECTED');
 
   /**
    * Dispatch API call
@@ -228,6 +228,104 @@ class apiHelper {
         case 'SET_WIDGET':
           self::setWidget($param['widget']);
           return null;
+          break;
+
+        case 'CAMERA_STREAM_OPEN':
+          return self::cameraStreamOpen($param['widgetId'] ?? null, $param['message'] ?? null);
+          break;
+
+        case 'CAMERA_STREAM_SEND':
+          self::cameraStreamSend($param['sessionId'] ?? null, $param['message'] ?? null);
+          return null;
+          break;
+
+        case 'CAMERA_STREAM_POLL':
+          return self::cameraStreamPoll($param['sessionId'] ?? null);
+          break;
+
+        case 'CAMERA_STREAM_CLOSE':
+          self::cameraStreamClose($param['sessionId'] ?? null);
+          return null;
+          break;
+
+        case 'CAMERA_TURN_CREDENTIALS':
+          // Le fournisseur n'est JAMAIS choisi par l'app ni par un paramètre
+          // de la requête, uniquement par le réglage serveur (page de config
+          // du plugin) : 'cloudflare' (offre gratuite BYO, défaut) ou
+          // 'managed' (offre payante, abonnement Apple/Google géré via
+          // l'app). Les URLs du service de mint managé sont visibles dans ce
+          // fichier (lisible par tout
+          // utilisateur Jeedom) - un appel API direct (avec sa propre
+          // apiKey) ne doit donc pas pouvoir forcer un autre mode que celui
+          // explicitement choisi dans la config.
+          return self::cameraTurnCredentials(config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
+          break;
+
+        case 'GET_HARDWARE_KEY':
+          // Identifiant d'installation Jeedom, déjà utilisé côté essai
+          // gratuit managé (voir Go2rtc::mintManagedTurnCredentials) - même
+          // valeur, exposée ici pour que l'app puisse l'associer à un achat
+          // intégré (abonnement Apple/Google) sans jamais avoir à la saisir
+          // manuellement.
+          return array('hardwareKey' => jeedom::getHardwareKey());
+          break;
+
+        case 'GET_MANAGED_TURN_STATUS':
+          return self::managedTurnStatus();
+          break;
+
+        case 'GET_TURN_MODE':
+          return array('mode' => config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
+          break;
+
+        case 'SET_TURN_MODE':
+          $mode = $param['mode'] ?? '';
+          if (!in_array($mode, array('cloudflare', 'managed'), true)) {
+            return self::raiseException('Mode invalide', 'SET_TURN_MODE');
+          }
+          config::save('turnMode', $mode, 'JeedomConnect');
+          return null;
+          break;
+
+        case 'START_MANAGED_TRIAL':
+          Go2rtc::startManagedTrial();
+          return null;
+          break;
+
+        case 'GET_CLOUDFLARE_TURN_CONFIG':
+          // L'API Token n'est JAMAIS renvoyé à l'app (comme le champ mot de
+          // passe équivalent de la config web) - seul le Turn Key ID
+          // (identifiant, pas un secret) et un booléen indiquant si un
+          // jeton est déjà enregistré.
+          return array(
+            'turnKeyId' => Go2rtc::getTurnKeyId(),
+            'configured' => Go2rtc::isTurnConfigured(),
+          );
+          break;
+
+        case 'SET_CLOUDFLARE_TURN_CONFIG':
+          $turnKeyId = trim($param['turnKeyId'] ?? '');
+          $apiToken = trim($param['apiToken'] ?? '');
+          config::save('cloudflareTurnKeyId', $turnKeyId, 'JeedomConnect');
+          // Un jeton vide laisse le jeton déjà enregistré inchangé (comme un
+          // champ mot de passe classique) - il n'est de toute façon jamais
+          // renvoyé à l'app, donc pas de moyen de le "confirmer" autrement
+          // qu'en le retapant intégralement.
+          if ($apiToken != '') {
+            config::save('cloudflareTurnApiToken', $apiToken, 'JeedomConnect');
+          }
+          return null;
+          break;
+
+        case 'RESTART_GO2RTC':
+          // Même action que le bouton "Redémarrer go2rtc" de la config web -
+          // notamment utile après un changement de mode TURN.
+          try {
+            Go2rtc::start();
+            return null;
+          } catch (Exception $e) {
+            return self::raiseException($e->getMessage(), 'RESTART_GO2RTC');
+          }
           break;
 
         case 'ADD_WIDGETS':
@@ -1449,6 +1547,97 @@ class apiHelper {
   private static function setWidget($widget) {
     // JCLog::debug('save widget data');
     JeedomConnectWidget::updateWidgetConfig($widget);
+  }
+
+  /**
+   * Ouvre une session vers go2rtc/api/ws pour un widget caméra, via le pont
+   * HTTP de Go2rtc, pour l'app quand elle n'est pas sur le LAN (voir
+   * webrtcPlayer.js). Générique : sert aussi bien le signaling WebRTC
+   * ($message = {type:"webrtc/offer",...}) que le démarrage d'un flux vidéo
+   * MSE ($message = {type:"mse",...}). L'appelant est déjà authentifié par
+   * apiKey (comme toute méthode de cette API) ; CAMERA_STREAM_OPEN vérifie
+   * en plus que le widget visé est bien une caméra avec webrtcEnabled - pas
+   * de proxy vers un stream non prévu pour ça. Le sessionId retourné sert de
+   * jeton pour les appels suivants (CAMERA_STREAM_SEND/POLL/CLOSE) : il est
+   * opaque (uuid4 généré par le pont) et n'est communiqué qu'à l'appelant
+   * ayant déjà passé ce contrôle - pas besoin de revalider le widget à
+   * chaque appel.
+   */
+  private static function cameraStreamOpen($widgetId, $message) {
+    if (empty($widgetId) || empty($message)) {
+      return self::raiseException('Paramètres manquants', 'CAMERA_STREAM_OPEN');
+    }
+
+    $conf = JeedomConnectWidget::getConfiguration($widgetId, '', null);
+    if (empty($conf) || ($conf['type'] ?? '') != 'camera' || empty($conf['webrtcEnabled'])) {
+      return self::raiseException('Widget caméra WebRTC introuvable ou désactivé', 'CAMERA_STREAM_OPEN');
+    }
+
+    try {
+      return array('sessionId' => Go2rtc::openSession($widgetId, $message));
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'CAMERA_STREAM_OPEN');
+    }
+  }
+
+  private static function cameraStreamSend($sessionId, $message) {
+    if (empty($sessionId) || empty($message)) {
+      return;
+    }
+    Go2rtc::sendToSession($sessionId, $message);
+  }
+
+  private static function cameraStreamPoll($sessionId) {
+    if (empty($sessionId)) {
+      return self::raiseException('Paramètres manquants', 'CAMERA_STREAM_POLL');
+    }
+    try {
+      return array('messages' => Go2rtc::pollSession($sessionId));
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'CAMERA_STREAM_POLL');
+    }
+  }
+
+  private static function cameraStreamClose($sessionId) {
+    if (empty($sessionId)) {
+      return;
+    }
+    Go2rtc::closeSession($sessionId);
+  }
+
+  /**
+   * Credentials TURN de courte durée pour le client (webrtcPlayer.js, mode
+   * 'webrtc-remote'). Pas de widgetId : ces credentials ne sont spécifiques
+   * à aucune caméra, juste un accès temporaire au relais - déjà gardées par
+   * l'authentification apiKey standard de cette API, comme toute autre
+   * méthode. Ne jamais renvoyer de secret serveur (Turn Key ID/API Token
+   * Cloudflare, secret coturn) à l'app - seul Go2rtc::mintClientTurnCredentials()
+   * les utilise côté serveur.
+   *
+   * @param string $provider 'cloudflare' (défaut, comportement normal du
+   *                          plugin) ou 'selfhosted' (VPS Oracle, dormant -
+   *                          voir Go2rtc::mintClientTurnCredentials()).
+   */
+  private static function cameraTurnCredentials($provider = 'cloudflare') {
+    try {
+      return array('iceServers' => Go2rtc::mintClientTurnCredentials($provider));
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'CAMERA_TURN_CREDENTIALS');
+    }
+  }
+
+  /**
+   * Statut d'essai/abonnement managé pour l'écran "Abonnement" de l'app -
+   * ne consomme aucun quota (lecture seule côté service de mint). Renvoie
+   * null si rien à afficher (essai jamais démarré et pas d'abonnement),
+   * jamais une exception dans ce cas précis.
+   */
+  private static function managedTurnStatus() {
+    try {
+      return Go2rtc::getManagedTurnStatus();
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'GET_MANAGED_TURN_STATUS');
+    }
   }
 
   /**
