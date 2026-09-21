@@ -1965,15 +1965,29 @@ class JeedomConnect extends eqLogic {
 
 
 	/**
-	 * @return listener
+	 * Max number of command ids stored in a single listener row.
+	 * Core's `listener.event` column is a `varchar(511)` holding a JSON array of `"#id#"`
+	 * entries (~10-12 chars each with quotes/comma) - a single listener can only hold ~40-50
+	 * ids before MySQL strict mode rejects the save with "Data too long for column 'event'".
+	 * Spreading ids across several listener rows keeps each row well under that limit.
 	 */
-	private function getListener($fx = 'sendCmdInfoToShortcut') {
-		return listener::byClassAndFunction(__CLASS__, $fx, array('id' => $this->getId()));
+	private const LISTENER_CHUNK_SIZE = 30;
+
+	/**
+	 * @return listener[]
+	 */
+	private function getListeners($fx = 'sendCmdInfoToShortcut') {
+		$listeners = array_filter(listener::byClass(__CLASS__), function ($listener) use ($fx) {
+			return $listener->getFunction() === $fx && $listener->getOption('id') == $this->getId();
+		});
+		usort($listeners, function ($a, $b) {
+			return $a->getOption('chunk', 0) <=> $b->getOption('chunk', 0);
+		});
+		return array_values($listeners);
 	}
 
 	private function removeListener($fx) {
-		$listener = $this->getListener($fx);
-		if (is_object($listener)) {
+		foreach ($this->getListeners($fx) as $listener) {
 			$listener->remove();
 		}
 	}
@@ -1981,31 +1995,41 @@ class JeedomConnect extends eqLogic {
 	private function setListener(array $cmd_ids = array(), string $fx = 'sendCmdInfoToShortcut') {
 		JCLog::debug('------ setListener started -- adding listener for fx ' . $fx);
 		JCLog::trace('------ setListener started -- ids ' . json_encode($cmd_ids));
+
 		if ($this->getIsEnable() == 0 || count($cmd_ids) == 0) {
 			JCLog::trace('remove listener');
 			$this->removeListener($fx);
 			return;
 		}
 
-		/** @var listener $listener */
-		$listener = $this->getListener($fx);
-		if (!is_object($listener)) {
-			$listener = new listener();
-			$listener->setClass(__CLASS__);
-			$listener->setFunction($fx);
-			$listener->setOption(array('id' => $this->getId()));
-		}
-		$listener->emptyEvent();
+		$existingListeners = $this->getListeners($fx);
+		$chunks = array_chunk(array_values(array_filter($cmd_ids, 'is_numeric')), self::LISTENER_CHUNK_SIZE);
 
-		foreach ($cmd_ids as $cmd_id) {
-			if (!is_numeric($cmd_id)) continue;
+		foreach ($chunks as $index => $chunkIds) {
+			/** @var listener $listener */
+			$listener = $existingListeners[$index] ?? null;
+			if (!is_object($listener)) {
+				$listener = new listener();
+				$listener->setClass(__CLASS__);
+				$listener->setFunction($fx);
+				$listener->setOption(array('id' => $this->getId(), 'chunk' => $index));
+			}
+			$listener->emptyEvent();
 
-			$cmd = cmd::byId($cmd_id);
-			if (!is_object($cmd)) continue;
-			JCLog::debug(' -- add listener for cmd ' . $cmd_id);
-			$listener->addEvent($cmd_id);
+			foreach ($chunkIds as $cmd_id) {
+				$cmd = cmd::byId($cmd_id);
+				if (!is_object($cmd)) continue;
+				JCLog::debug(' -- add listener for cmd ' . $cmd_id . ' (chunk ' . $index . ')');
+				$listener->addEvent($cmd_id);
+			}
+			$listener->save();
 		}
-		$listener->save();
+
+		// Drop leftover rows from a previous, larger chunk count (e.g. fewer active controls now).
+		for ($i = count($chunks); $i < count($existingListeners); $i++) {
+			$existingListeners[$i]->remove();
+		}
+
 		JCLog::debug('------ setListener end for fx ' . $fx);
 	}
 
