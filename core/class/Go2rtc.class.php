@@ -643,12 +643,43 @@ class Go2rtc {
 
 		$yaml = "api:\n"
 			. "  listen: \":" . self::getPort() . "\"\n"
+			. self::API_ORIGIN_LINE
 			. "  allow_paths:\n"
 			. "    - /api/streams\n"
 			. "    - /api/ws\n"
 			. $webrtcYaml
 			. "streams:\n";
 		file_put_contents(self::getConfigPath(), $yaml);
+	}
+
+	// origin "*" : désactive la vérification d'Origin du WebSocket /api/ws
+	// (internal/api/ws/ws.go, CheckOrigin toujours vrai) et ajoute les en-têtes
+	// CORS. Nécessaire à l'audio bidirectionnel en LAN : getUserMedia n'existe
+	// que dans un contexte sécurisé, donc la page du lecteur (WebrtcPlayer côté
+	// app) est servie depuis http://localhost plutôt que http://<ip>:1984 -
+	// origine que go2rtc refusait sinon (il exigeait Origin == host:port).
+	// Contrepartie assumée (validée avec l'utilisateur) : toute page web ouverte
+	// sur le réseau local peut désormais joindre /api/streams et /api/ws, déjà
+	// sans authentification sur ce port.
+	const API_ORIGIN_LINE = "  origin: \"*\"\n";
+
+	/**
+	 * Ajoute API_ORIGIN_LINE à un fichier de config déjà existant (installs
+	 * antérieures) : start() ne régénère jamais un fichier présent, pour ne
+	 * pas perdre les streams que go2rtc y a persistés lui-même.
+	 */
+	private static function ensureApiOrigin() {
+		$path = self::getConfigPath();
+		$content = file_get_contents($path);
+		if ($content === false || preg_match('/^\s+origin:/m', $content)) {
+			return;
+		}
+		$patched = preg_replace('/^api:\s*\n/m', "api:\n" . self::API_ORIGIN_LINE, $content, 1, $count);
+		if ($count === 1) {
+			file_put_contents($path, $patched);
+		} else {
+			JCLog::warning('go2rtc: section api: introuvable dans la config, origin non ajouté');
+		}
 	}
 
 	public static function start() {
@@ -665,6 +696,8 @@ class Go2rtc {
 		// précédents (voir writeConfig()).
 		if (!file_exists(self::getConfigPath())) {
 			self::writeConfig();
+		} else {
+			self::ensureApiOrigin();
 		}
 
 		$cmd = escapeshellarg(self::getBinaryPath()) . ' -config ' . escapeshellarg(self::getConfigPath());

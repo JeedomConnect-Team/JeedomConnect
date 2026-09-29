@@ -5227,6 +5227,20 @@
 					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP/Snapshot classique."
 				},
 				{
+					"id": "audioAutoplay",
+					"name": "Son automatique à l'ouverture",
+					"required": false,
+					"category": "binary",
+					"description": "Démarre le son dès l'ouverture du widget, sans action de l'utilisateur. Sinon, muet par défaut (activable via le bouton son)."
+				},
+				{
+					"id": "controlsAlwaysVisible",
+					"name": "Contrôles toujours visibles",
+					"required": false,
+					"category": "binary",
+					"description": "Affiche les boutons de contrôle sur une ligne permanente au-dessus de la vidéo, au lieu des barres affichées au toucher sur l'image. Les barres restent utilisées en plein écran."
+				},
+				{
 					"id": "networkCaching",
 					"name": "Mise en cache réseau (ms)",
 					"required": false,
@@ -5441,6 +5455,221 @@
 					"name": "Masquer l'appareil",
 					"category": "binary",
 					"description": "[Android 11+] Ne pas remonter ce widget dans les appareils contrôlés par Android"
+				}
+			]
+		},
+		{
+			"type": "frigate",
+			"name": "Caméra Frigate",
+			"img": "frigate.webp",
+			"description": "Permet d'afficher le live et l'historique d'une caméra Frigate",
+			"variables": [
+				{
+					"name": "room",
+					"descr": "Pièce"
+				}
+			],
+			"options": [
+				{
+					"id": "name",
+					"name": "Nom",
+					"required": true,
+					"category": "string"
+				},
+				{
+					"id": "nameDisplayed",
+					"name": "Nom d'affichage",
+					"description": "Nom affiché sur les pages de configuration. Si vide, alors le nom est utilisé.",
+					"category": "string"
+				},
+				{
+					"id": "subtitle",
+					"name": "Sous-titre",
+					"required": false,
+					"category": "stringList",
+					"choices": [],
+					"description": "Information supplémentaire affichée sur le widget"
+				},
+				{
+					"id": "frigateUrl",
+					"name": "URL Frigate",
+					"required": true,
+					"category": "string",
+					"description": "URL de base de Frigate, ex. http://192.168.1.50:5000 (ou le port 8971 si l'authentification Frigate est activée)"
+				},
+				{
+					"id": "frigateCameraName",
+					"name": "Nom de la caméra (Frigate)",
+					"required": true,
+					"category": "string",
+					"description": "Doit correspondre exactement au nom de la caméra configuré dans le config.yml de Frigate"
+				},
+				{
+					"id": "webrtcEnabled",
+					"name": "Flux vidéo optimisé (go2rtc)",
+					"required": false,
+					"category": "binary",
+					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP direct. Nécessite le restream go2rtc de Frigate activé (Settings > System > go2rtc streams)."
+				},
+				{
+					"id": "twoWayAudio",
+					"name": "Audio bidirectionnel (micro)",
+					"required": false,
+					"category": "binary",
+					"description": "Ajoute un bouton micro pour parler via le haut-parleur de la caméra. Nécessite le flux vidéo optimisé (go2rtc) et une caméra compatible (backchannel audio). Indisponible en repli MSE hors LAN."
+				},
+				{
+					"id": "twoWayStreamUrl",
+					"name": "URL RTSP directe de la caméra (audio bidirectionnel)",
+					"required": false,
+					"category": "string",
+					"description": "Utilisée à la place du restream Frigate quand l'audio bidirectionnel est activé : le restream de Frigate ne transmet pas le canal audio vers la caméra (go2rtc < 1.9.9). Identifiants inclus dans l'URL. Ex. Dahua : rtsp://user:pass@IP/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif"
+				},
+				{
+					"id": "controlsAlwaysVisible",
+					"name": "Contrôles toujours visibles",
+					"required": false,
+					"category": "binary",
+					"description": "Affiche les boutons de contrôle sur une ligne permanente au-dessus de la vidéo, au lieu des barres affichées au toucher sur l'image. Les barres restent utilisées en plein écran."
+				},
+				{
+					"id": "authEnabled",
+					"name": "Authentification Frigate activée",
+					"required": false,
+					"category": "binary"
+				},
+				{
+					"id": "username",
+					"name": "Nom d'utilisateur Frigate",
+					"required": false,
+					"category": "string",
+					"description": "Utilisé uniquement si l'authentification Frigate est activée"
+				},
+				{
+					"id": "password",
+					"name": "Mot de passe Frigate",
+					"required": false,
+					"category": "string",
+					"subtype": "password",
+					"description": "Utilisé uniquement si l'authentification Frigate est activée"
+				},
+				{
+					"id": "mqttEventsInfo",
+					"name": "Commande MQTT statut caméra Frigate",
+					"required": false,
+					"category": "cmd",
+					"type": "info",
+					"subtype": "string",
+					"description": "Optionnel : commande Jeedom alimentée (via jMQTT, MQTT Manager...) par le topic MQTT frigate/<nom_caméra>/review_status (spécifique à cette caméra, valeurs NONE/DETECTION/ALERT). Rafraîchit automatiquement l'historique dès qu'un nouvel événement est détecté sur cette caméra ; sans elle, repli sur un rafraîchissement manuel seul"
+				},
+				{
+					"id": "tapDestination",
+					"name": "Écran ouvert au tap",
+					"required": false,
+					"category": "stringList",
+					"defaultChoice": "details",
+					"choices": [
+						{
+							"id": "details",
+							"name": "Vue détail (live)"
+						},
+						{
+							"id": "events",
+							"name": "Historique des événements"
+						}
+					],
+					"description": "Écran ouvert en tapant sur le widget. Le bouton \"Historique\" reste de toute façon toujours accessible depuis la vue détail, quel que soit ce choix."
+				},
+				{
+					"id": "frigateDefaultView",
+					"name": "Vue par défaut",
+					"required": false,
+					"category": "stringList",
+					"defaultChoice": "live",
+					"choices": [
+						{
+							"id": "live",
+							"name": "Direct"
+						},
+						{
+							"id": "timeline",
+							"name": "Timeline"
+						}
+					],
+					"description": "Vue affichée au premier affichage de la carte du widget (Direct ou Timeline). L'utilisateur peut toujours basculer ensuite avec les boutons en haut de la carte."
+				},
+				{
+					"id": "upAction",
+					"name": "Direction haut",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_UP"
+				},
+				{
+					"id": "downAction",
+					"name": "Direction bas",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_DOWN"
+				},
+				{
+					"id": "leftAction",
+					"name": "Direction gauche",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_LEFT"
+				},
+				{
+					"id": "rightAction",
+					"name": "Direction droite",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_RIGHT"
+				},
+				{
+					"id": "image",
+					"name": "Image",
+					"required": false,
+					"category": "img"
+				},
+				{
+					"id": "statusImages",
+					"name": "Images sous conditions",
+					"required": false,
+					"category": "ifImgs"
+				},
+				{
+					"id": "display",
+					"name": "Affichage forcé",
+					"required": false,
+					"category": "stringList",
+					"choices": [
+						{
+							"id": "widget",
+							"name": "Carte"
+						},
+						{
+							"id": "miniWidget",
+							"name": "Vignette"
+						},
+						{
+							"id": "bigWidget",
+							"name": "Grand widget"
+						},
+						{
+							"id": "detail",
+							"name": "Détail"
+						}
+					],
+					"description": "Affichage forcé du widget"
 				}
 			]
 		},
