@@ -7241,7 +7241,6 @@
 			"img": "component-button.webp",
 			"name": "Bouton",
 			"description": "Affiche un bouton et permet de réaliser 1 à plusieurs actions à la suite",
-			"noMoreInfos": true,
 			"options": [
 				{
 					"id": "name",
