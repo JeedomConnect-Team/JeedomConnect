@@ -315,6 +315,58 @@ class JeedomConnectWidget extends config {
 			$conf['cloudflareTunnelHostname'] = $previousConf['cloudflareTunnelHostname'];
 		}
 
+		if (($conf['type'] ?? '') == 'frigate' && !empty($conf['frigateUrl']) && !empty($conf['frigateCameraName'])) {
+			// Dérivation systématique (pas de report conditionnel façon
+			// cloudflareTunnelHostname) : contrairement à ce dernier (assigné
+			// par un service externe), streamUrl est une fonction pure de
+			// frigateUrl+frigateCameraName, tous deux soumis par le
+			// formulaire à chaque sauvegarde - le recalculer à chaque fois
+			// reste donc toujours cohérent, sans risque de valeur orpheline.
+			// Restream go2rtc intégré à Frigate, voir
+			// https://docs.frigate.video/configuration/restream/ - doit être
+			// activé côté Frigate (Settings > System > go2rtc streams), pas
+			// automatique. Pas de #username#/#password# dans cette URL : le
+			// restream RTSP de Frigate n'est pas couvert par son
+			// authentification JWT (API HTTP uniquement) - username/password
+			// du widget servent uniquement à l'API HTTP Frigate (historique).
+			//
+			// webrtcEnabled n'est PAS forcé ici (contrairement à une version
+			// précédente) : c'est un champ du formulaire ("Flux vidéo
+			// optimisé (go2rtc)", même option que le widget caméra générique)
+			// que l'utilisateur pilote lui-même - le forcer retirait le choix
+			// de repasser en RTSP direct (dépannage, latence LAN plus faible
+			// quand l'accès hors LAN n'est pas nécessaire...). Seul streamUrl
+			// est calculé automatiquement.
+			$frigateHost = parse_url($conf['frigateUrl'], PHP_URL_HOST);
+			if (!empty($frigateHost)) {
+				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . $conf['frigateCameraName'];
+				// Audio bidirectionnel. streamUrl faisant partie de
+				// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le flux
+				// auprès de go2rtc.
+				if (!empty($conf['twoWayAudio'])) {
+					if (!empty($conf['twoWayStreamUrl'])) {
+						// Source directe de la caméra À LA PLACE du restream :
+						// Frigate 0.18 embarque go2rtc 1.9.8, dont le serveur
+						// RTSP n'expose pas le backchannel (arrivé en 1.9.9).
+						// Vérifié sur le terrain (Dahua VTO) : la seule
+						// configuration qui fonctionne est l'URL directe comme
+						// SOURCE UNIQUE - en 2e source derrière le restream
+						// (vidéo Frigate + audio montant direct), go2rtc
+						// n'obtenait jamais le canal retour de la caméra.
+						// Pas de fragment #... non plus : dès qu'il y en a un,
+						// go2rtc remplace sa valeur par défaut du backchannel
+						// (activé) - un simple #media=audio le désactivait.
+						$conf['streamUrl'] = $conf['twoWayStreamUrl'];
+					} else {
+						// Sans URL directe : ne fonctionne qu'avec un go2rtc
+						// Frigate >= 1.9.9 (PR AlexxIT/go2rtc#1432), qui n'expose
+						// le backchannel que sur demande explicite.
+						$conf['streamUrl'] .= '?backchannel=1';
+					}
+				}
+			}
+		}
+
 		JCLog::debug('saveConfiguration details received for id : ' . $widgetId . $cpl . ' - conf : ' . json_encode($conf));
 		try {
 			config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
@@ -324,7 +376,7 @@ class JeedomConnectWidget extends config {
 		}
 		JCLog::debug('saveConfiguration done');
 
-		if (($conf['type'] ?? '') == 'camera' && self::go2rtcRegistrationNeeded($previousConf, $conf)) {
+		if (in_array($conf['type'] ?? '', array('camera', 'frigate')) && self::go2rtcRegistrationNeeded($previousConf, $conf)) {
 			// POC go2rtc : saveConfig() est le seul chokepoint commun à tous les
 			// chemins de sauvegarde d'un widget (SET_WIDGET, création via
 			// addGlobalWidgets, updateConfig...) - contrairement à
@@ -434,7 +486,7 @@ class JeedomConnectWidget extends config {
 			// en webrtcEnabled (unregisterStream() est un no-op si le stream
 			// n'existe pas).
 			$removedConf = self::getConfiguration($idToRemove, '', null);
-			if (($removedConf['type'] ?? '') == 'camera') {
+			if (in_array($removedConf['type'] ?? '', array('camera', 'frigate'))) {
 				try {
 					Go2rtc::unregisterStream($idToRemove);
 				} catch (Exception $e) {

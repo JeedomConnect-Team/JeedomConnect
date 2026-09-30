@@ -17,6 +17,7 @@
  */
 
 require_once dirname(__FILE__) . "/../../../../core/php/core.inc.php";
+require_once dirname(__FILE__) . "/FrigateClient.class.php";
 
 class apiHelper {
   public static $_skipLog = array('GET_EVENTS', 'GET_LOG', 'SET_FACE_DETECTED');
@@ -259,6 +260,22 @@ class apiHelper {
           // apiKey) ne doit donc pas pouvoir forcer un autre mode que celui
           // explicitement choisi dans la config.
           return self::cameraTurnCredentials(config::byKey('turnMode', 'JeedomConnect', 'cloudflare'));
+          break;
+
+        case 'FRIGATE_EVENTS':
+          return self::frigateEvents($param['widgetId'] ?? null, $param);
+          break;
+
+        case 'FRIGATE_TEST_CONNECTION':
+          return self::frigateTestConnection($param['frigateUrl'] ?? null, $param['cameraName'] ?? null, $param['authEnabled'] ?? false, $param['username'] ?? null, $param['password'] ?? null);
+          break;
+
+        case 'FRIGATE_DELETE_EVENT':
+          return self::frigateDeleteEvent($param['widgetId'] ?? null, $param['eventId'] ?? null);
+          break;
+
+        case 'FRIGATE_SET_RETAIN':
+          return self::frigateSetRetain($param['widgetId'] ?? null, $param['eventId'] ?? null, $param['retain'] ?? null);
           break;
 
         case 'GET_HARDWARE_KEY':
@@ -1569,7 +1586,7 @@ class apiHelper {
     }
 
     $conf = JeedomConnectWidget::getConfiguration($widgetId, '', null);
-    if (empty($conf) || ($conf['type'] ?? '') != 'camera' || empty($conf['webrtcEnabled'])) {
+    if (empty($conf) || !in_array($conf['type'] ?? '', array('camera', 'frigate')) || empty($conf['webrtcEnabled'])) {
       return self::raiseException('Widget caméra WebRTC introuvable ou désactivé', 'CAMERA_STREAM_OPEN');
     }
 
@@ -1623,6 +1640,91 @@ class apiHelper {
       return array('iceServers' => Go2rtc::mintClientTurnCredentials($provider));
     } catch (Exception $e) {
       return self::raiseException($e->getMessage(), 'CAMERA_TURN_CREDENTIALS');
+    }
+  }
+
+  /**
+   * Historique d'un widget frigate - la caméra ciblée vient TOUJOURS de la
+   * config du widget (voir FrigateClient::getEvents), jamais du client.
+   * aspectRatio est renvoyé avec les events pour que l'écran historique
+   * puisse dimensionner le lecteur de clip sans aller-retour supplémentaire.
+   */
+  private static function frigateEvents($widgetId, $param) {
+    if (empty($widgetId)) {
+      return self::raiseException('Paramètres manquants', 'FRIGATE_EVENTS');
+    }
+    try {
+      $conf = JeedomConnectWidget::getConfiguration($widgetId, '', null);
+      $events = FrigateClient::getEvents($widgetId, $param);
+      return array(
+        'type' => 'SET_FRIGATE_EVENTS',
+        'payload' => array(
+          'events' => $events,
+          'aspectRatio' => $conf['aspectRatio'] ?? null,
+          // Renvoyé pour que l'écran historique puisse s'abonner en direct
+          // (useCmd, mécanisme générique de push cmd déjà utilisé par le
+          // reste de l'app) aux changements de ce cmd et se rafraîchir tout
+          // seul dès qu'un nouvel event Frigate arrive par MQTT - null si le
+          // widget n'a pas ce champ configuré (purement REST, sans temps
+          // réel, voir FrigateClient::getEvents).
+          'mqttEventsInfo' => $conf['mqttEventsInfo'] ?? null,
+        ),
+      );
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'FRIGATE_EVENTS');
+    }
+  }
+
+  /**
+   * Supprime un event Frigate. Renvoie juste un succès (pas une liste
+   * rafraîchie comme frigateEvents()) : le client retire l'event localement
+   * de la liste déjà chargée plutôt que de tout re-demander au serveur -
+   * évite de perdre le filtre de date actif (before/after) que ce endpoint
+   * ne reçoit pas.
+   */
+  private static function frigateDeleteEvent($widgetId, $eventId) {
+    if (empty($widgetId) || empty($eventId)) {
+      return self::raiseException('Paramètres manquants', 'FRIGATE_DELETE_EVENT');
+    }
+    try {
+      FrigateClient::deleteEvent($widgetId, $eventId);
+      return array('success' => true);
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'FRIGATE_DELETE_EVENT');
+    }
+  }
+
+  /**
+   * Bascule retain_indefinitely d'un event Frigate. Même principe que
+   * frigateDeleteEvent() : renvoie juste un succès, le client met à jour
+   * l'event localement plutôt que de tout re-demander au serveur.
+   */
+  private static function frigateSetRetain($widgetId, $eventId, $retain) {
+    if (empty($widgetId) || empty($eventId) || $retain === null) {
+      return self::raiseException('Paramètres manquants', 'FRIGATE_SET_RETAIN');
+    }
+    try {
+      FrigateClient::setEventRetain($widgetId, $eventId, (bool)$retain);
+      return array('success' => true, 'retain' => (bool)$retain);
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'FRIGATE_SET_RETAIN');
+    }
+  }
+
+  /**
+   * Testable avant la sauvegarde du widget (paramètres bruts, pas de
+   * widgetId) - voir FrigateClient::testConnection pour le détail (vérifie
+   * aussi que la caméra indiquée existe bien côté Frigate).
+   */
+  private static function frigateTestConnection($frigateUrl, $cameraName, $authEnabled, $username, $password) {
+    if (empty($frigateUrl) || empty($cameraName)) {
+      return self::raiseException('Paramètres manquants', 'FRIGATE_TEST_CONNECTION');
+    }
+    try {
+      FrigateClient::testConnection($frigateUrl, $cameraName, $authEnabled, $username, $password);
+      return array('success' => true);
+    } catch (Exception $e) {
+      return self::raiseException($e->getMessage(), 'FRIGATE_TEST_CONNECTION');
     }
   }
 
