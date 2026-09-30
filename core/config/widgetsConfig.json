@@ -5560,7 +5560,7 @@
 					"category": "cmd",
 					"type": "info",
 					"subtype": "string",
-					"description": "Optionnel : commande Jeedom alimentée (via jMQTT, MQTT Manager...) par le topic MQTT frigate/<nom_caméra>/review_status (spécifique à cette caméra, valeurs NONE/DETECTION/ALERT). Rafraîchit automatiquement l'historique dès qu'un nouvel événement est détecté sur cette caméra ; sans elle, repli sur un rafraîchissement manuel seul"
+					"description": "Optionnel : commande Jeedom alimentée (via jMQTT, MQTT Manager...) par le topic MQTT frigate/<nom_caméra>/review_status (spécifique à cette caméra, valeurs NONE/DETECTION/ALERT). Rafraîchit automatiquement l'historique dès qu'un nouvel événement est détecté sur cette caméra ; sans elle, l'historique est rafraîchi toutes les minutes"
 				},
 				{
 					"id": "tapDestination",
