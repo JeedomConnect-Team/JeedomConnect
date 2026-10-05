@@ -317,11 +317,12 @@ class JeedomConnectWidget extends config {
 
 		if (($conf['type'] ?? '') == 'frigate' && !empty($conf['frigateUrl']) && !empty($conf['frigateCameraName'])) {
 			// Dérivation systématique (pas de report conditionnel façon
-			// cloudflareTunnelHostname) : contrairement à ce dernier (assigné
-			// par un service externe), streamUrl est une fonction pure de
-			// frigateUrl+frigateCameraName, tous deux soumis par le
-			// formulaire à chaque sauvegarde - le recalculer à chaque fois
-			// reste donc toujours cohérent, sans risque de valeur orpheline.
+			// cloudflareTunnelHostname) : streamUrl est recalculé à chaque
+			// sauvegarde à partir de frigateUrl+frigateCameraName (soumis par
+			// le formulaire) et de la config de Frigate lue à ce moment-là (nom
+			// du flux go2rtc, voir plus bas) - toujours cohérent avec l'état
+			// courant, sans risque de valeur orpheline. Un renommage des flux
+			// go2rtc côté Frigate nécessite donc de réenregistrer le widget.
 			// Restream go2rtc intégré à Frigate, voir
 			// https://docs.frigate.video/configuration/restream/ - doit être
 			// activé côté Frigate (Settings > System > go2rtc streams), pas
@@ -339,7 +340,35 @@ class JeedomConnectWidget extends config {
 			// est calculé automatiquement.
 			$frigateHost = parse_url($conf['frigateUrl'], PHP_URL_HOST);
 			if (!empty($frigateHost)) {
-				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . $conf['frigateCameraName'];
+				// Nom du flux go2rtc de Frigate, qui peut différer du nom de la
+				// caméra (voir FrigateClient::resolveRestreamName) - lu dans la
+				// config de Frigate à chaque sauvegarde. Frigate injoignable ou
+				// rien de concluant : repli sur le nom de la caméra
+				// (comportement historique). Conservé dans la conf
+				// (frigateRestreamName) pour le diagnostic.
+				$restreamName = $conf['frigateCameraName'];
+				try {
+					require_once __DIR__ . '/FrigateClient.class.php';
+					$resolved = FrigateClient::resolveRestreamName($widgetId, $conf);
+					if (!empty($resolved)) {
+						$restreamName = $resolved;
+					} else {
+						// Frigate joignable, mais aucun flux go2rtc pour cette
+						// caméra (pas de section go2rtc, flux nommés sans lien
+						// détectable avec la caméra...) : le restream répondra
+						// 404 et le flux vidéo ne pourra pas démarrer (l'app
+						// se replie alors sur le dernier cliché) - message
+						// explicite plutôt qu'un échec silencieux.
+						JCLog::warning('Frigate : aucun flux go2rtc trouvé pour la caméra ' . $conf['frigateCameraName'] . ' dans la configuration de Frigate (section go2rtc: streams) - le flux vidéo ne pourra pas démarrer, seuls les clichés seront affichés');
+					}
+				} catch (Exception $e) {
+					JCLog::warning('Frigate : flux go2rtc de la caméra ' . $conf['frigateCameraName'] . ' non déterminé (' . $e->getMessage() . ') - nom de caméra utilisé');
+				}
+				if ($restreamName !== $conf['frigateCameraName']) {
+					JCLog::info('Frigate : caméra ' . $conf['frigateCameraName'] . ' -> flux go2rtc ' . $restreamName);
+				}
+				$conf['frigateRestreamName'] = $restreamName;
+				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . rawurlencode($restreamName);
 				// Audio bidirectionnel. streamUrl faisant partie de
 				// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le flux
 				// auprès de go2rtc.

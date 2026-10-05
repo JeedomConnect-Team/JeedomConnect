@@ -5502,14 +5502,14 @@
 					"name": "Nom de la caméra (Frigate)",
 					"required": true,
 					"category": "string",
-					"description": "Doit correspondre exactement au nom de la caméra configuré dans le config.yml de Frigate"
+					"description": "Nom de la caméra tel que défini dans la section cameras du config.yml de Frigate (respectez la casse). Le flux go2rtc correspondant est retrouvé automatiquement dans la configuration de Frigate à l'enregistrement du widget, même s'il porte un autre nom."
 				},
 				{
 					"id": "webrtcEnabled",
 					"name": "Flux vidéo optimisé (go2rtc)",
 					"required": false,
 					"category": "binary",
-					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP direct. Nécessite le restream go2rtc de Frigate activé (Settings > System > go2rtc streams)."
+					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP direct (qui ne fonctionne que sur le réseau local). Nécessite un flux go2rtc pour cette caméra dans Frigate (section go2rtc: streams du config.yml). Hors LAN, aucun relais TURN n'est nécessaire."
 				},
 				{
 					"id": "twoWayAudio",
@@ -5645,6 +5645,12 @@
 					"name": "Images sous conditions",
 					"required": false,
 					"category": "ifImgs"
+				},
+				{
+					"id": "moreWidgets",
+					"name": "Widgets supplémentaires",
+					"category": "widgets",
+					"description": "Widgets supplémentaires affichés dans la vue détails"
 				},
 				{
 					"id": "display",
