@@ -323,8 +323,36 @@ class JeedomConnect extends eqLogic {
 		}
 		exec("{$pythonPath} -m pip freeze", $packages_installed);
 		$packages = join("||", $packages_installed);
+		// Noms installés normalisés (PEP 503 : casse et -/_/. équivalents),
+		// pour les lignes de requirements.txt SANS contrainte de version
+		// (cas de toutes les lignes actuelles) : la regex ci-dessous ne
+		// reconnaît que "paquet==x"/">="/"~=" et ignorait donc silencieusement
+		// ces lignes - un paquet absent du venv (ex. websocket-client, requis
+		// par resources/webrtcBridge.py) laissait les dépendances "OK" alors
+		// que le pont WebRTC ne pouvait pas démarrer ("Impossible de démarrer
+		// le pont WebRTC", constaté chez un utilisateur), sans jamais inviter
+		// à les réinstaller.
+		$normalize = function ($name) {
+			return strtolower(preg_replace('/[-_.]+/', '-', trim($name)));
+		};
+		$installedNames = array();
+		foreach ($packages_installed as $installedLine) {
+			if (preg_match('/^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(==|@)/', $installedLine, $m) === 1) {
+				$installedNames[$normalize($m[1])] = true;
+			}
+		}
 		exec("cat {$requirementsPath}", $packages_needed);
 		foreach ($packages_needed as $line) {
+			$line = trim($line);
+			if ($line === '' || strpos($line, '#') === 0) {
+				continue;
+			}
+			if (preg_match('/^([A-Za-z0-9][A-Za-z0-9._-]*)$/', $line, $bare) === 1) {
+				if (!isset($installedNames[$normalize($bare[1])])) {
+					return false;
+				}
+				continue;
+			}
 			if (preg_match('/([^\s]+)[\s]*([>=~]=)[\s]*([\d+\.?]+)$/', $line, $need) === 1) {
 				if (preg_match('/' . $need[1] . '==([\d+\.?]+)/', $packages, $install) === 1) {
 					if ($need[2] == '==' && $need[3] != $install[1]) {

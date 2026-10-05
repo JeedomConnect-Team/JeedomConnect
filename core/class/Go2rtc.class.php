@@ -806,11 +806,19 @@ class Go2rtc {
 		self::stopBridge();
 		JCLog::info('Starting webrtc bridge');
 
+		// Taille du log avant ce lancement : en cas d'échec, seule la sortie
+		// de CE lancement est analysée (voir detectMissingPythonModule) - une
+		// ancienne erreur restée dans le log ne doit pas être prise pour la
+		// cause de l'échec actuel.
+		$logFile = log::getPathToLog('JeedomConnect_webrtc_bridge');
+		clearstatcache(true, $logFile);
+		$logOffset = file_exists($logFile) ? filesize($logFile) : 0;
+
 		$cmd = escapeshellarg(self::getPythonPath()) . ' ' . escapeshellarg(self::getBridgeScriptPath())
 			. ' --port ' . self::getBridgePort()
 			. ' --go2rtcport ' . self::getPort()
 			. ' --pid ' . escapeshellarg(self::getBridgePidFile());
-		exec($cmd . ' >> ' . log::getPathToLog('JeedomConnect_webrtc_bridge') . ' 2>&1 &');
+		exec($cmd . ' >> ' . $logFile . ' 2>&1 &');
 
 		$i = 0;
 		while ($i < 10) {
@@ -821,11 +829,71 @@ class Go2rtc {
 			$i++;
 		}
 		if ($i >= 10) {
+			// Module Python absent du venv (constaté chez un utilisateur :
+			// websocket-client manquant, dépendances jamais réinstallées) :
+			// le script échoue dès son import, avant même d'écrire son fichier
+			// pid. Message explicite plutôt que le générique "impossible de
+			// démarrer", et invalidation de l'état "ok" mis en cache par le
+			// coeur (plugin::dependancy_info ne revérifie pas tant que ce
+			// cache existe) : la gestion automatique des dépendances de
+			// Jeedom (plugin::checkDeamon) voit alors l'état réel ("nok", via
+			// pythonRequirementsInstalled) et les réinstalle d'elle-même.
+			$missingModule = self::detectMissingPythonModule($logFile, $logOffset);
+			if ($missingModule !== null) {
+				cache::byKey('dependancyJeedomConnect')->remove();
+				$msg = sprintf(
+					__("Le pont WebRTC (flux caméra go2rtc hors LAN) n'a pas pu démarrer : module Python '%s' manquant, les dépendances du plugin sont incomplètes. Réinstallez-les depuis la page du plugin (Dépendances > Relancer) ; si la gestion automatique des dépendances est activée, Jeedom les réinstallera de lui-même sous quelques minutes.", __FILE__),
+					$missingModule
+				);
+				JCLog::error($msg);
+				message::add('JeedomConnect', $msg, '', 'webrtcBridgeMissingDependency');
+				throw new Exception(sprintf(__("Dépendances du plugin incomplètes (module Python '%s' manquant) : réinstallez les dépendances", __FILE__), $missingModule));
+			}
 			log::add('JeedomConnect', 'error', __('Impossible de démarrer le pont WebRTC, vérifiez le log', __FILE__), 'unableStartWebrtcBridge');
 			return false;
 		}
 		message::removeAll('JeedomConnect', 'unableStartWebrtcBridge');
+		message::removeAll('JeedomConnect', 'webrtcBridgeMissingDependency');
 		return true;
+	}
+
+	/**
+	 * Cherche, dans la sortie du pont écrite depuis $offset (son lancement
+	 * courant), une erreur d'import Python (ModuleNotFoundError /
+	 * ImportError).
+	 *
+	 * @return string|null le nom du module manquant ('?' si l'erreur ne le
+	 *                      précise pas), ou null si aucune erreur d'import
+	 */
+	private static function detectMissingPythonModule($logFile, $offset) {
+		clearstatcache(true, $logFile);
+		if (!file_exists($logFile)) {
+			return null;
+		}
+		$size = filesize($logFile);
+		if ($size < $offset) {
+			// Log tourné/vidé entre-temps : tout son contenu est récent.
+			$offset = 0;
+		}
+		// Borné : une trace d'import tient en quelques lignes.
+		$length = min($size - $offset, 65536);
+		if ($length <= 0) {
+			return null;
+		}
+		$output = @file_get_contents($logFile, false, null, $offset, $length);
+		if (!is_string($output)) {
+			return null;
+		}
+		if (preg_match("/ModuleNotFoundError: No module named '([^']+)'/", $output, $m)) {
+			return $m[1];
+		}
+		if (preg_match('/ImportError: (?:cannot import name|No module named) \'?([^\'\s]+)/', $output, $m)) {
+			return $m[1];
+		}
+		if (strpos($output, 'ImportError') !== false || strpos($output, 'ModuleNotFoundError') !== false) {
+			return '?';
+		}
+		return null;
 	}
 
 	private static function stopBridge() {

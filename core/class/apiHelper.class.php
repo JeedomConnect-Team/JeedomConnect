@@ -1636,6 +1636,18 @@ class apiHelper {
    *                          voir Go2rtc::mintClientTurnCredentials()).
    */
   private static function cameraTurnCredentials($provider = 'cloudflare') {
+    // Aucun TURN configuré (offre Cloudflare BYO par défaut, jamais
+    // renseignée) : c'est l'état normal de tout utilisateur sans relais, pour
+    // qui l'app bascule d'elle-même en MSE - pas une erreur. Même réponse
+    // EXCEPTION que raiseException() (l'app s'y fie pour déclencher son
+    // repli), mais sans JCLog::error : appelé à chaque ouverture de caméra
+    // hors LAN et à chaque relance automatique, ça remplissait le log
+    // d'erreurs chez les utilisateurs concernés.
+    if ($provider === 'cloudflare' && !Go2rtc::isTurnConfigured()) {
+      $message = "Error with 'CAMERA_TURN_CREDENTIALS' method " . __("TURN Cloudflare non configuré (Turn Key ID / API Token manquants)", __FILE__);
+      JCLog::debug('CAMERA_TURN_CREDENTIALS : ' . $message . ' - repli MSE côté app');
+      return array('type' => 'EXCEPTION', 'payload' => array('message' => $message));
+    }
     try {
       return array('iceServers' => Go2rtc::mintClientTurnCredentials($provider));
     } catch (Exception $e) {

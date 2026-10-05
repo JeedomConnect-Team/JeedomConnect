@@ -382,6 +382,16 @@ function refreshAddWidgets() {
 
     $("#widgetDescription").html(widget.description);
 
+    // Lien vers la page de documentation du type de widget (jc-doc, une page
+    // par type générée depuis widgetsConfig.json : scripts/generateWidgetDocs.js
+    // côté jc-doc). Pas de page pour les composants ni pour les types 'jc' et
+    // 'component' - lien masqué dans ce cas.
+    if (itemType == 'widget' && !['jc', 'component'].includes(type)) {
+        $("#widgetDocLink").attr("href", "https://jeedomconnect-team.github.io/jc-doc/docs/documentation/plugin/types/widgets/" + encodeURIComponent(type)).show();
+    } else {
+        $("#widgetDocLink").hide();
+    }
+
     if (widget.variables) {
         let varDescr = `Variables disponibles : <ul style="padding-left: 15px;">`;
         widget.variables.forEach(v => {

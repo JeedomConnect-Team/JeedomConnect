@@ -355,6 +355,88 @@ class FrigateClient {
 		return true;
 	}
 
+	/*     * ********************** RESTREAM (nom du flux go2rtc) ****************** */
+
+	/**
+	 * Nom du flux go2rtc de Frigate (restream rtsp://<hôte>:8554/<nom>) à
+	 * utiliser pour une caméra Frigate - qui n'est PAS forcément le nom de la
+	 * caméra elle-même : rien n'oblige à nommer ses flux go2rtc comme ses
+	 * caméras (cas réel : caméra "reolink_avant" alimentée par les flux
+	 * "rtsp_avant"/"rtsp_avant_sub" - avec le nom de caméra seul, le restream
+	 * répondait 404 et la vidéo ne démarrait jamais ; avec le nom du flux, la
+	 * vidéo marchait mais l'API Frigate, elle, ne connaissait pas cette
+	 * "caméra" - snapshot/événements en 404).
+	 *
+	 * Lu dans /api/config, premier candidat existant réellement dans
+	 * go2rtc.streams, par ordre de préférence :
+	 *  1. le(s) flux déclaré(s) par Frigate lui-même pour l'affichage en direct
+	 *     de la caméra (live.streams depuis Frigate 0.16 - premier de la liste -,
+	 *     live.stream_name avant) : c'est la correspondance qu'utilise sa propre
+	 *     interface ;
+	 *  2. le nom de la caméra (convention recommandée par la doc Frigate) ;
+	 *  3. les flux référencés par les entrées ffmpeg de la caméra
+	 *     (rtsp://127.0.0.1:8554/<flux>, montage restream classique), celle de
+	 *     rôle "record" (flux principal) en premier.
+	 *
+	 * @return string|null le nom du flux, ou null si rien de concluant (config
+	 *                      sans section go2rtc, caméra introuvable...) - à
+	 *                      l'appelant de retomber sur le nom de la caméra.
+	 * @throws Exception si Frigate est injoignable
+	 */
+	public static function resolveRestreamName($widgetId, $conf) {
+		$config = json_decode(self::request($widgetId, $conf, '/api/config'), true);
+		$cameraName = $conf['frigateCameraName'] ?? '';
+		$camera = $config['cameras'][$cameraName] ?? null;
+		if (!is_array($camera)) {
+			return null;
+		}
+
+		$candidates = array();
+		$liveStreams = $camera['live']['streams'] ?? null;
+		if (is_array($liveStreams)) {
+			foreach ($liveStreams as $streamName) {
+				if (is_string($streamName) && $streamName !== '') {
+					$candidates[] = $streamName;
+				}
+			}
+		}
+		if (!empty($camera['live']['stream_name']) && is_string($camera['live']['stream_name'])) {
+			$candidates[] = $camera['live']['stream_name'];
+		}
+		$candidates[] = $cameraName;
+
+		$inputCandidates = array();
+		foreach ($camera['ffmpeg']['inputs'] ?? array() as $input) {
+			$path = is_array($input) ? ($input['path'] ?? '') : '';
+			// rtsp://[user:pass@]hôte:8554/<flux>[?...] - hôte quelconque
+			// (127.0.0.1, localhost, nom du conteneur...) : seul le port du
+			// restream go2rtc de Frigate et le nom de flux comptent ici.
+			if (is_string($path) && preg_match('#^rtsp://(?:[^@/]*@)?[^:/]+:8554/([^/?\#]+)#', $path, $m)) {
+				$roles = is_array($input['roles'] ?? null) ? $input['roles'] : array();
+				if (in_array('record', $roles, true)) {
+					array_unshift($inputCandidates, rawurldecode($m[1]));
+				} else {
+					$inputCandidates[] = rawurldecode($m[1]);
+				}
+			}
+		}
+		$candidates = array_values(array_unique(array_merge($candidates, $inputCandidates)));
+
+		$go2rtcStreams = $config['go2rtc']['streams'] ?? null;
+		if (is_array($go2rtcStreams) && !empty($go2rtcStreams)) {
+			foreach ($candidates as $candidate) {
+				if (array_key_exists($candidate, $go2rtcStreams)) {
+					return $candidate;
+				}
+			}
+			return null;
+		}
+		// Pas de liste go2rtc exploitable dans la réponse (version de Frigate
+		// qui ne l'expose pas) : seules les entrées ffmpeg pointant sur le
+		// restream prouvent l'existence d'un flux.
+		return $inputCandidates[0] ?? null;
+	}
+
 	/*     * ********************** PROXY MÉDIA (vignette/snapshot/clip) *********** */
 
 	/**
