@@ -5224,21 +5224,21 @@
 					"name": "Flux vidéo optimisé (go2rtc)",
 					"required": false,
 					"category": "binary",
-					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP/Snapshot classique."
+					"description": "Flux fluide en LAN et hors LAN via go2rtc, au lieu du flux RTSP/Snapshot classique"
 				},
 				{
 					"id": "audioAutoplay",
 					"name": "Son automatique à l'ouverture",
 					"required": false,
 					"category": "binary",
-					"description": "Démarre le son dès l'ouverture du widget, sans action de l'utilisateur. Sinon, muet par défaut (activable via le bouton son)."
+					"description": "Active le son dès l'ouverture du widget. Sinon, muet par défaut (bouton son)"
 				},
 				{
 					"id": "controlsAlwaysVisible",
 					"name": "Contrôles toujours visibles",
 					"required": false,
 					"category": "binary",
-					"description": "Affiche les boutons de contrôle sur une ligne permanente au-dessus de la vidéo, au lieu des barres affichées au toucher sur l'image. Les barres restent utilisées en plein écran."
+					"description": "Boutons de contrôle sur une ligne fixe au-dessus de la vidéo, au lieu des barres affichées au toucher (sauf en plein écran)"
 				},
 				{
 					"id": "networkCaching",
@@ -5252,7 +5252,7 @@
 					"name": "Désactiver le décodage matériel (iOS)",
 					"required": false,
 					"category": "binary",
-					"description": "À activer uniquement si l'image reste noire sur cette caméra. Bascule sur un décodage logiciel, plus gourmand en CPU",
+					"description": "À activer seulement si l'image reste noire : décodage logiciel, plus gourmand en CPU",
 					"customizable": true
 				},
 				{
@@ -5495,42 +5495,42 @@
 					"name": "URL Frigate",
 					"required": true,
 					"category": "string",
-					"description": "URL de base de Frigate, ex. http://192.168.1.50:5000 (ou le port 8971 si l'authentification Frigate est activée)"
+					"description": "URL de Frigate, ex. http://192.168.1.50:5000 (port 8971 si l'authentification Frigate est activée)"
 				},
 				{
 					"id": "frigateCameraName",
 					"name": "Nom de la caméra (Frigate)",
 					"required": true,
 					"category": "string",
-					"description": "Nom de la caméra tel que défini dans la section cameras du config.yml de Frigate (respectez la casse). Le flux go2rtc correspondant est retrouvé automatiquement dans la configuration de Frigate à l'enregistrement du widget, même s'il porte un autre nom."
+					"description": "Nom de la caméra dans la section cameras du config.yml de Frigate (respectez la casse)"
 				},
 				{
 					"id": "webrtcEnabled",
 					"name": "Flux vidéo optimisé (go2rtc)",
 					"required": false,
 					"category": "binary",
-					"description": "Diffusion fluide en LAN et hors LAN via le pont go2rtc du plugin, à la place du flux RTSP direct (qui ne fonctionne que sur le réseau local). Nécessite un flux go2rtc pour cette caméra dans Frigate (section go2rtc: streams du config.yml). Hors LAN, aucun relais TURN n'est nécessaire."
+					"description": "Flux fluide en LAN et hors LAN via go2rtc, au lieu du RTSP direct (LAN uniquement). Nécessite un flux go2rtc pour cette caméra dans Frigate"
 				},
 				{
 					"id": "twoWayAudio",
 					"name": "Audio bidirectionnel (micro)",
 					"required": false,
 					"category": "binary",
-					"description": "Ajoute un bouton micro pour parler via le haut-parleur de la caméra. Nécessite le flux vidéo optimisé (go2rtc) et une caméra compatible (backchannel audio). Indisponible en repli MSE hors LAN."
+					"description": "Bouton micro pour parler via le haut-parleur de la caméra. Nécessite le flux vidéo optimisé (go2rtc) et une caméra compatible"
 				},
 				{
 					"id": "twoWayStreamUrl",
-					"name": "URL RTSP directe de la caméra (audio bidirectionnel)",
+					"name": "URL RTSP directe de la caméra",
 					"required": false,
 					"category": "string",
-					"description": "Utilisée à la place du restream Frigate quand l'audio bidirectionnel est activé : le restream de Frigate ne transmet pas le canal audio vers la caméra (go2rtc < 1.9.9). Identifiants inclus dans l'URL. Ex. Dahua : rtsp://user:pass@IP/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif"
+					"description": "Facultatif. Remplace le restream Frigate pour le direct : son d'origine de la caméra, requis pour l'audio bidirectionnel. Identifiants inclus dans l'URL"
 				},
 				{
 					"id": "controlsAlwaysVisible",
 					"name": "Contrôles toujours visibles",
 					"required": false,
 					"category": "binary",
-					"description": "Affiche les boutons de contrôle sur une ligne permanente au-dessus de la vidéo, au lieu des barres affichées au toucher sur l'image. Les barres restent utilisées en plein écran."
+					"description": "Boutons de contrôle sur une ligne fixe au-dessus de la vidéo, au lieu des barres affichées au toucher (sauf en plein écran)"
 				},
 				{
 					"id": "authEnabled",
@@ -5560,7 +5560,7 @@
 					"category": "cmd",
 					"type": "info",
 					"subtype": "string",
-					"description": "Optionnel : commande Jeedom alimentée (via jMQTT, MQTT Manager...) par le topic MQTT frigate/<nom_caméra>/review_status (spécifique à cette caméra, valeurs NONE/DETECTION/ALERT). Rafraîchit automatiquement l'historique dès qu'un nouvel événement est détecté sur cette caméra ; sans elle, l'historique est rafraîchi toutes les minutes"
+					"description": "Facultatif : info du topic MQTT frigate/<caméra>/review_status, pour rafraîchir l'historique à chaque événement (sinon toutes les minutes)"
 				},
 				{
 					"id": "tapDestination",
@@ -5578,7 +5578,7 @@
 							"name": "Historique des événements"
 						}
 					],
-					"description": "Écran ouvert en tapant sur le widget. Le bouton \"Historique\" reste de toute façon toujours accessible depuis la vue détail, quel que soit ce choix."
+					"description": "Écran ouvert en tapant sur le widget. L'historique reste accessible depuis la vue détail"
 				},
 				{
 					"id": "frigateDefaultView",
@@ -5596,7 +5596,7 @@
 							"name": "Timeline"
 						}
 					],
-					"description": "Vue affichée au premier affichage de la carte du widget (Direct ou Timeline). L'utilisateur peut toujours basculer ensuite avec les boutons en haut de la carte."
+					"description": "Vue affichée à l'ouverture de la carte (Direct ou Timeline), modifiable ensuite via les boutons de la carte"
 				},
 				{
 					"id": "upAction",
@@ -5716,7 +5716,7 @@
 					"name": "Nom du package",
 					"required": true,
 					"category": "string",
-					"description": "Nom du package Android de l'application. Vous pouvez utiliser l'application Package Name Viewer 2.0 pour l'obtenir"
+					"description": "Nom du package Android de l'application (visible avec l'app Package Name Viewer 2.0)"
 				},
 				{
 					"id": "image",
