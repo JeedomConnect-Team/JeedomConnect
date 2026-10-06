@@ -339,7 +339,36 @@ class JeedomConnectWidget extends config {
 			// quand l'accès hors LAN n'est pas nécessaire...). Seul streamUrl
 			// est calculé automatiquement.
 			$frigateHost = parse_url($conf['frigateUrl'], PHP_URL_HOST);
-			if (!empty($frigateHost)) {
+			if (!empty($conf['twoWayStreamUrl'])) {
+				// URL directe de la caméra renseignée : source du flux, À LA
+				// PLACE du restream Frigate, que l'audio bidirectionnel soit
+				// coché ou non. Avant, elle n'était utilisée qu'avec l'audio
+				// bidirectionnel, et ignorée sinon alors même qu'elle était
+				// remplie : le flux venait du restream de Frigate, dont la piste
+				// audio est souvent absente ou en AAC (format des
+				// enregistrements Frigate), que WebRTC ne sait pas lire -
+				// constaté chez un utilisateur (Dahua VTO) : vidéo OK, aucune
+				// piste audio reçue, alors que la même caméra avait le son
+				// avec la case cochée. L'URL directe donne l'audio d'origine de
+				// la caméra (souvent G.711, lisible en WebRTC).
+				//
+				// Avec l'audio bidirectionnel, c'est de toute façon la seule
+				// configuration qui marche : Frigate 0.18 embarque go2rtc
+				// 1.9.8, dont le serveur RTSP n'expose pas le backchannel
+				// (arrivé en 1.9.9). Vérifié sur le terrain (Dahua VTO) : URL
+				// directe comme SOURCE UNIQUE - en 2e source derrière le
+				// restream (vidéo Frigate + audio montant direct), go2rtc
+				// n'obtenait jamais le canal retour de la caméra. Pas de
+				// fragment #... non plus : dès qu'il y en a un, go2rtc remplace
+				// sa valeur par défaut du backchannel (activé) - un simple
+				// #media=audio le désactivait.
+				//
+				// Clichés, historique et clips passent toujours par l'API
+				// Frigate (frigateCameraName) : seule la vidéo en direct change
+				// de source.
+				$conf['streamUrl'] = $conf['twoWayStreamUrl'];
+				unset($conf['frigateRestreamName']);
+			} elseif (!empty($frigateHost)) {
 				// Nom du flux go2rtc de Frigate, qui peut différer du nom de la
 				// caméra (voir FrigateClient::resolveRestreamName) - lu dans la
 				// config de Frigate à chaque sauvegarde. Frigate injoignable ou
@@ -369,29 +398,14 @@ class JeedomConnectWidget extends config {
 				}
 				$conf['frigateRestreamName'] = $restreamName;
 				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . rawurlencode($restreamName);
-				// Audio bidirectionnel. streamUrl faisant partie de
+				// Audio bidirectionnel sans URL directe (voir plus haut) : ne
+				// fonctionne qu'avec un go2rtc Frigate >= 1.9.9 (PR
+				// AlexxIT/go2rtc#1432), qui n'expose le backchannel que sur
+				// demande explicite. streamUrl faisant partie de
 				// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le flux
 				// auprès de go2rtc.
 				if (!empty($conf['twoWayAudio'])) {
-					if (!empty($conf['twoWayStreamUrl'])) {
-						// Source directe de la caméra À LA PLACE du restream :
-						// Frigate 0.18 embarque go2rtc 1.9.8, dont le serveur
-						// RTSP n'expose pas le backchannel (arrivé en 1.9.9).
-						// Vérifié sur le terrain (Dahua VTO) : la seule
-						// configuration qui fonctionne est l'URL directe comme
-						// SOURCE UNIQUE - en 2e source derrière le restream
-						// (vidéo Frigate + audio montant direct), go2rtc
-						// n'obtenait jamais le canal retour de la caméra.
-						// Pas de fragment #... non plus : dès qu'il y en a un,
-						// go2rtc remplace sa valeur par défaut du backchannel
-						// (activé) - un simple #media=audio le désactivait.
-						$conf['streamUrl'] = $conf['twoWayStreamUrl'];
-					} else {
-						// Sans URL directe : ne fonctionne qu'avec un go2rtc
-						// Frigate >= 1.9.9 (PR AlexxIT/go2rtc#1432), qui n'expose
-						// le backchannel que sur demande explicite.
-						$conf['streamUrl'] .= '?backchannel=1';
-					}
+					$conf['streamUrl'] .= '?backchannel=1';
 				}
 			}
 		}
