@@ -5520,10 +5520,10 @@
 				},
 				{
 					"id": "twoWayStreamUrl",
-					"name": "URL RTSP directe de la caméra",
+					"name": "Source directe du flux",
 					"required": false,
 					"category": "string",
-					"description": "Facultatif. Remplace le restream Frigate pour le direct : son d'origine de la caméra, requis pour l'audio bidirectionnel. Identifiants inclus dans l'URL"
+					"description": "Facultatif. Remplace le restream Frigate pour le direct : URL RTSP de la caméra (identifiants inclus), ou flux go2rtc de Frigate en WebRTC (webrtc:ws://<ip frigate>:1984/api/ws?src=<flux>) pour l'audio bidirectionnel quand Frigate gère le canal retour. Voir la documentation"
 				},
 				{
 					"id": "controlsAlwaysVisible",

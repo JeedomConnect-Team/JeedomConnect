@@ -1058,8 +1058,20 @@ class Go2rtc {
 			return;
 		}
 
-		$apiUrl = self::getLocalApiUrl() . '/api/streams?name=' . rawurlencode(self::streamName($widgetId))
-			. '&src=' . rawurlencode($url);
+		// 2e source facultative dédiée au canal retour (widget frigate dont
+		// le backchannel passe par le go2rtc de Frigate, voir
+		// JeedomConnectWidget::saveConfig) : go2rtc prend chaque piste dans la
+		// première source qui la fournit, la 2e n'est donc ouverte que pour
+		// le son envoyé à la caméra. Plusieurs paramètres src = liste de
+		// sources (PUT /api/streams, internal/streams/api.go).
+		$sources = array($url);
+		if (!empty($conf['twoWayAudio']) && !empty($conf['go2rtcTalkUrl'])) {
+			$sources[] = $conf['go2rtcTalkUrl'];
+		}
+		$apiUrl = self::getLocalApiUrl() . '/api/streams?name=' . rawurlencode(self::streamName($widgetId));
+		foreach ($sources as $source) {
+			$apiUrl .= '&src=' . rawurlencode($source);
+		}
 		self::curlRequest($apiUrl, 'PUT');
 	}
 

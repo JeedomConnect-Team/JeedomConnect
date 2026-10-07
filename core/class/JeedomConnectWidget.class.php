@@ -239,7 +239,7 @@ class JeedomConnectWidget extends config {
 	// Champs dont la modification justifie de rappeler l'API go2rtc (voir
 	// saveConfig()) - tout le reste (nom, sous-titre, ratio, refreshInterval
 	// du snapshot...) n'a aucun effet sur l'enregistrement du flux WebRTC.
-	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password');
+	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password', 'go2rtcTalkUrl', 'twoWayAudio');
 
 	private static function go2rtcRegistrationNeeded($previousConf, $conf) {
 		if ($previousConf === null) {
@@ -339,7 +339,10 @@ class JeedomConnectWidget extends config {
 			// quand l'accès hors LAN n'est pas nécessaire...). Seul streamUrl
 			// est calculé automatiquement.
 			$frigateHost = parse_url($conf['frigateUrl'], PHP_URL_HOST);
-			if (!empty($conf['twoWayStreamUrl'])) {
+			$directSource = $conf['twoWayStreamUrl'] ?? '';
+			$isWebrtcTalkSource = strpos($directSource, 'webrtc:') === 0;
+			unset($conf['go2rtcTalkUrl']);
+			if (!empty($directSource) && !$isWebrtcTalkSource) {
 				// URL directe de la caméra renseignée : source du flux, À LA
 				// PLACE du restream Frigate, que l'audio bidirectionnel soit
 				// coché ou non. Avant, elle n'était utilisée qu'avec l'audio
@@ -352,16 +355,10 @@ class JeedomConnectWidget extends config {
 				// avec la case cochée. L'URL directe donne l'audio d'origine de
 				// la caméra (souvent G.711, lisible en WebRTC).
 				//
-				// Avec l'audio bidirectionnel, c'est de toute façon la seule
-				// configuration qui marche : Frigate 0.18 embarque go2rtc
-				// 1.9.8, dont le serveur RTSP n'expose pas le backchannel
-				// (arrivé en 1.9.9). Vérifié sur le terrain (Dahua VTO) : URL
-				// directe comme SOURCE UNIQUE - en 2e source derrière le
-				// restream (vidéo Frigate + audio montant direct), go2rtc
-				// n'obtenait jamais le canal retour de la caméra. Pas de
-				// fragment #... non plus : dès qu'il y en a un, go2rtc remplace
-				// sa valeur par défaut du backchannel (activé) - un simple
-				// #media=audio le désactivait.
+				// Audio bidirectionnel : URL sans fragment #... - dès qu'il y en
+				// a un, go2rtc remplace sa valeur par défaut du backchannel
+				// (activé), un simple #media=audio le désactivait. Variante
+				// webrtc: (go2rtc de Frigate) : voir la branche suivante.
 				//
 				// Clichés, historique et clips passent toujours par l'API
 				// Frigate (frigateCameraName) : seule la vidéo en direct change
@@ -398,13 +395,38 @@ class JeedomConnectWidget extends config {
 				}
 				$conf['frigateRestreamName'] = $restreamName;
 				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . rawurlencode($restreamName);
-				// Audio bidirectionnel sans URL directe (voir plus haut) : ne
-				// fonctionne qu'avec un go2rtc Frigate >= 1.9.9 (PR
-				// AlexxIT/go2rtc#1432), qui n'expose le backchannel que sur
-				// demande explicite. streamUrl faisant partie de
-				// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le flux
-				// auprès de go2rtc.
-				if (!empty($conf['twoWayAudio'])) {
+				if ($isWebrtcTalkSource) {
+					// Source directe webrtc:ws://<frigate>:1984/api/ws?src=<flux> :
+					// c'est le go2rtc de FRIGATE qui tient le canal retour de la
+					// caméra (Home Assistant, annonces TTS... branchés dessus).
+					// Une caméra n'a souvent qu'UN canal de conversation (Dahua
+					// VTO) : notre go2rtc ne doit pas le demander lui-même (404 au
+					// DESCRIBE pour le second demandeur), il passe par Frigate.
+					// - Vidéo/son : restream RTSP ci-dessus, SANS backchannel.
+					// - Canal retour : 2e source go2rtc (Go2rtc::registerStream),
+					//   que go2rtc n'ouvre que lorsqu'un client envoie
+					//   réellement du son - l'app ne négocie sa piste micro
+					//   qu'à l'appui sur le bouton micro (webrtcPlayer.js).
+					//   Source unique webrtc: = canal retour tenu chez Frigate
+					//   pendant TOUT le visionnage : go2rtcClient (go2rtc
+					//   internal/webrtc/client.go) offre toujours une piste
+					//   sendonly, et les annonces de Home Assistant échouaient
+					//   dès que la sonnette était ouverte dans l'app.
+					// - Pas le restream ?backchannel=1 pour le canal retour : il
+					//   n'annonce que le PREMIER codec du canal retour de la
+					//   caméra (AAC sur un VTO Dahua), qu'un téléphone ne sait pas
+					//   envoyer - en WebRTC, go2rtc Frigate négocie PCMU/PCMA.
+					// Vérifié sur le terrain (Dahua VTO, Frigate go2rtc 1.9.14).
+					$conf['go2rtcTalkUrl'] = $directSource;
+				} elseif (!empty($conf['twoWayAudio'])) {
+					// Audio bidirectionnel sans source directe : go2rtc Frigate
+					// >= 1.9.9 (PR AlexxIT/go2rtc#1432), qui n'expose le
+					// backchannel que sur demande explicite - et seulement si le
+					// premier codec du canal retour de la caméra est envoyable
+					// depuis un téléphone (G.711, Opus), sinon passer par une
+					// source webrtc: (ci-dessus). streamUrl faisant partie de
+					// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le
+					// flux auprès de go2rtc.
 					$conf['streamUrl'] .= '?backchannel=1';
 				}
 			}
