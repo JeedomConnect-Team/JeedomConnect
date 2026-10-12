@@ -768,6 +768,19 @@ $('.eqLogicAction[data-action=showMaps]').off('click').on('click', function () {
   $('#mapsModal').load('index.php?v=d&plugin=JeedomConnect&modal=position.JeedomConnect').dialog('open');
 })
 
+$('.eqLogicAction[data-action=showStreamingServices]').off('click').on('click', function () {
+  $("#streamingServicesModal").dialog('destroy').remove();
+  $('body').append('<div id="streamingServicesModal"></div>');
+  $('#streamingServicesModal').dialog({
+    title: "{{Services de streaming}}",
+    width: 0.9 * $(window).width(),
+    height: 0.85 * $(window).height(),
+    modal: true,
+    closeText: ''
+  });
+  $('#streamingServicesModal').load('index.php?v=d&plugin=JeedomConnect&modal=streamingServices.JeedomConnect').dialog('open');
+})
+
 $('.eqLogicAction[data-action=showCommunity]').off('click').on('click', function () {
   showCommunity($('.txtInfoPlugin').html())
 

@@ -48,6 +48,25 @@ class JeedomConnectWidget extends config {
 		return utils::getJsonAttr($conf, $_key, $_default);
 	}
 
+	/**
+	 * Résout une URL de widget caméra (flux ou snapshot) : soit une valeur
+	 * texte statique ($_urlKey), soit dynamique via une commande Jeedom
+	 * ($_urlInfoKey, ex "streamUrlInfo"/"snapshotUrlInfo" -> execCmd()).
+	 * Logique partagée par snapshot.php et Go2rtc::registerStream().
+	 */
+	public static function resolveConfUrl($conf, $_urlKey, $_urlInfoKey) {
+		$url = $conf[$_urlKey] ?? '';
+
+		if (isset($conf[$_urlInfoKey])) {
+			$cmdId = $conf[$_urlInfoKey]['id'];
+			$cmd = cmd::byId($cmdId);
+			if (is_object($cmd)) {
+				$url = $cmd->execCmd();
+			}
+		}
+		return $url;
+	}
+
 	public static function getJsonData($_data, $_key = '', $_default = '') {
 
 		// JCLog::info( ' ##  getJsonData  -- data received => ' . json_encode($_data) );
@@ -217,12 +236,200 @@ class JeedomConnectWidget extends config {
 		}
 	}
 
+	// Champs dont la modification justifie de rappeler l'API go2rtc (voir
+	// saveConfig()) - tout le reste (nom, sous-titre, ratio, refreshInterval
+	// du snapshot...) n'a aucun effet sur l'enregistrement du flux WebRTC.
+	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password', 'go2rtcTalkUrl', 'twoWayAudio');
+
+	private static function go2rtcRegistrationNeeded($previousConf, $conf) {
+		if ($previousConf === null) {
+			// nouvelle création : seulement pertinent si déjà coché à la création
+			return !empty($conf['webrtcEnabled']);
+		}
+		foreach (self::$_go2rtcRelevantKeys as $key) {
+			if (($previousConf[$key] ?? null) != ($conf[$key] ?? null)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Un widget webview a besoin d'un tunnel hors-LAN exactement dans les
+	// mêmes conditions que useProxy côté app (useUri() dans
+	// components.js) : une localUrl renseignée, aucune url publique, et
+	// aucune commande urlCmd (valeur dynamique explicitement gérée par
+	// l'admin, jamais tunnelée).
+	private static function webviewNeedsTunnel($conf) {
+		return !empty($conf['localUrl']) && empty($conf['url']) && empty($conf['urlCmd']);
+	}
+
+	private static function cloudflareTunnelRegistrationNeeded($previousConf, $conf) {
+		$neededBefore = $previousConf !== null && self::webviewNeedsTunnel($previousConf);
+		$neededNow = self::webviewNeedsTunnel($conf);
+		if ($neededNow && !$neededBefore) {
+			return 'register';
+		}
+		if ($neededNow && ($previousConf['localUrl'] ?? null) != ($conf['localUrl'] ?? null)) {
+			// Cible LAN modifiée alors que le tunnel était déjà actif - la
+			// route existante doit pointer vers la nouvelle cible.
+			return 'register';
+		}
+		if ($neededNow && empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Rattrape un premier enregistrement resté en échec (ex: quota
+			// atteint à la création du widget) : sans ce cas, une simple
+			// resauvegarde sans toucher à localUrl ne retentait jamais
+			// registerRoute(), même après avoir levé le quota. On vérifie
+			// previousConf (la conf STOCKÉE), pas $conf (la soumission du
+			// client) : ce champ n'a pas d'input dédié et ne revient donc
+			// jamais dans $conf - voir saveConfig() plus bas.
+			return 'register';
+		}
+		if (!$neededNow && $neededBefore) {
+			return 'unregister';
+		}
+		return null;
+	}
+
 	public static function saveConfig($conf, $widgetId = null) {
 
 		$cpl = '';
-		if (is_null($widgetId)) {
+		$isNew = is_null($widgetId);
+		$previousConf = $isNew ? null : self::getConfiguration($widgetId, '', null);
+		if ($isNew) {
 			$widgetId = self::incrementIndex();
 			$cpl = ' [new creation]';
+		}
+
+		if (($conf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($conf)
+			&& empty($conf['cloudflareTunnelHostname'] ?? null) && !empty($previousConf['cloudflareTunnelHostname'] ?? null)) {
+			// Le formulaire d'édition ne soumet jamais ce champ (aucun input
+			// dédié - posé plus bas par CloudflareTunnel::registerRoute(),
+			// jamais par l'utilisateur) : sans ce report depuis la conf
+			// stockée, TOUTE sauvegarde normale du widget (même un simple
+			// renommage) effaçait silencieusement le hostname de Jeedom, alors
+			// que le tunnel reste parfaitement actif côté service VPS -
+			// Jeedom "oubliait" juste où le trouver, cassant l'accès hors LAN
+			// jusqu'à une resauvegarde qui change réellement localUrl (seul
+			// déclencheur de cloudflareTunnelRegistrationNeeded() qui le
+			// régénère).
+			$conf['cloudflareTunnelHostname'] = $previousConf['cloudflareTunnelHostname'];
+		}
+
+		if (($conf['type'] ?? '') == 'frigate' && !empty($conf['frigateUrl']) && !empty($conf['frigateCameraName'])) {
+			// Dérivation systématique (pas de report conditionnel façon
+			// cloudflareTunnelHostname) : streamUrl est recalculé à chaque
+			// sauvegarde à partir de frigateUrl+frigateCameraName (soumis par
+			// le formulaire) et de la config de Frigate lue à ce moment-là (nom
+			// du flux go2rtc, voir plus bas) - toujours cohérent avec l'état
+			// courant, sans risque de valeur orpheline. Un renommage des flux
+			// go2rtc côté Frigate nécessite donc de réenregistrer le widget.
+			// Restream go2rtc intégré à Frigate, voir
+			// https://docs.frigate.video/configuration/restream/ - doit être
+			// activé côté Frigate (Settings > System > go2rtc streams), pas
+			// automatique. Pas de #username#/#password# dans cette URL : le
+			// restream RTSP de Frigate n'est pas couvert par son
+			// authentification JWT (API HTTP uniquement) - username/password
+			// du widget servent uniquement à l'API HTTP Frigate (historique).
+			//
+			// webrtcEnabled n'est PAS forcé ici (contrairement à une version
+			// précédente) : c'est un champ du formulaire ("Flux vidéo
+			// optimisé (go2rtc)", même option que le widget caméra générique)
+			// que l'utilisateur pilote lui-même - le forcer retirait le choix
+			// de repasser en RTSP direct (dépannage, latence LAN plus faible
+			// quand l'accès hors LAN n'est pas nécessaire...). Seul streamUrl
+			// est calculé automatiquement.
+			$frigateHost = parse_url($conf['frigateUrl'], PHP_URL_HOST);
+			$directSource = $conf['twoWayStreamUrl'] ?? '';
+			$isWebrtcTalkSource = strpos($directSource, 'webrtc:') === 0;
+			unset($conf['go2rtcTalkUrl']);
+			if (!empty($directSource) && !$isWebrtcTalkSource) {
+				// URL directe de la caméra renseignée : source du flux, À LA
+				// PLACE du restream Frigate, que l'audio bidirectionnel soit
+				// coché ou non. Avant, elle n'était utilisée qu'avec l'audio
+				// bidirectionnel, et ignorée sinon alors même qu'elle était
+				// remplie : le flux venait du restream de Frigate, dont la piste
+				// audio est souvent absente ou en AAC (format des
+				// enregistrements Frigate), que WebRTC ne sait pas lire -
+				// constaté chez un utilisateur (Dahua VTO) : vidéo OK, aucune
+				// piste audio reçue, alors que la même caméra avait le son
+				// avec la case cochée. L'URL directe donne l'audio d'origine de
+				// la caméra (souvent G.711, lisible en WebRTC).
+				//
+				// Audio bidirectionnel : URL sans fragment #... - dès qu'il y en
+				// a un, go2rtc remplace sa valeur par défaut du backchannel
+				// (activé), un simple #media=audio le désactivait. Variante
+				// webrtc: (go2rtc de Frigate) : voir la branche suivante.
+				//
+				// Clichés, historique et clips passent toujours par l'API
+				// Frigate (frigateCameraName) : seule la vidéo en direct change
+				// de source.
+				$conf['streamUrl'] = $conf['twoWayStreamUrl'];
+				unset($conf['frigateRestreamName']);
+			} elseif (!empty($frigateHost)) {
+				// Nom du flux go2rtc de Frigate, qui peut différer du nom de la
+				// caméra (voir FrigateClient::resolveRestreamName) - lu dans la
+				// config de Frigate à chaque sauvegarde. Frigate injoignable ou
+				// rien de concluant : repli sur le nom de la caméra
+				// (comportement historique). Conservé dans la conf
+				// (frigateRestreamName) pour le diagnostic.
+				$restreamName = $conf['frigateCameraName'];
+				try {
+					require_once __DIR__ . '/FrigateClient.class.php';
+					$resolved = FrigateClient::resolveRestreamName($widgetId, $conf);
+					if (!empty($resolved)) {
+						$restreamName = $resolved;
+					} else {
+						// Frigate joignable, mais aucun flux go2rtc pour cette
+						// caméra (pas de section go2rtc, flux nommés sans lien
+						// détectable avec la caméra...) : le restream répondra
+						// 404 et le flux vidéo ne pourra pas démarrer (l'app
+						// se replie alors sur le dernier cliché) - message
+						// explicite plutôt qu'un échec silencieux.
+						JCLog::warning('Frigate : aucun flux go2rtc trouvé pour la caméra ' . $conf['frigateCameraName'] . ' dans la configuration de Frigate (section go2rtc: streams) - le flux vidéo ne pourra pas démarrer, seuls les clichés seront affichés');
+					}
+				} catch (Exception $e) {
+					JCLog::warning('Frigate : flux go2rtc de la caméra ' . $conf['frigateCameraName'] . ' non déterminé (' . $e->getMessage() . ') - nom de caméra utilisé');
+				}
+				if ($restreamName !== $conf['frigateCameraName']) {
+					JCLog::info('Frigate : caméra ' . $conf['frigateCameraName'] . ' -> flux go2rtc ' . $restreamName);
+				}
+				$conf['frigateRestreamName'] = $restreamName;
+				$conf['streamUrl'] = 'rtsp://' . $frigateHost . ':8554/' . rawurlencode($restreamName);
+				if ($isWebrtcTalkSource) {
+					// Source directe webrtc:ws://<frigate>:1984/api/ws?src=<flux> :
+					// c'est le go2rtc de FRIGATE qui tient le canal retour de la
+					// caméra (Home Assistant, annonces TTS... branchés dessus).
+					// Une caméra n'a souvent qu'UN canal de conversation (Dahua
+					// VTO) : notre go2rtc ne doit pas le demander lui-même (404 au
+					// DESCRIBE pour le second demandeur), il passe par Frigate.
+					// - Vidéo/son : restream RTSP ci-dessus, SANS backchannel.
+					// - Canal retour : 2e source go2rtc (Go2rtc::registerStream),
+					//   que go2rtc n'ouvre que lorsqu'un client envoie
+					//   réellement du son - l'app ne négocie sa piste micro
+					//   qu'à l'appui sur le bouton micro (webrtcPlayer.js).
+					//   Source unique webrtc: = canal retour tenu chez Frigate
+					//   pendant TOUT le visionnage : go2rtcClient (go2rtc
+					//   internal/webrtc/client.go) offre toujours une piste
+					//   sendonly, et les annonces de Home Assistant échouaient
+					//   dès que la sonnette était ouverte dans l'app.
+					// - Pas le restream ?backchannel=1 pour le canal retour : il
+					//   n'annonce que le PREMIER codec du canal retour de la
+					//   caméra (AAC sur un VTO Dahua), qu'un téléphone ne sait pas
+					//   envoyer - en WebRTC, go2rtc Frigate négocie PCMU/PCMA.
+					// Vérifié sur le terrain (Dahua VTO, Frigate go2rtc 1.9.14).
+					$conf['go2rtcTalkUrl'] = $directSource;
+				} elseif (!empty($conf['twoWayAudio'])) {
+					// Audio bidirectionnel sans source directe : go2rtc Frigate
+					// >= 1.9.9 (PR AlexxIT/go2rtc#1432), qui n'expose le
+					// backchannel que sur demande explicite - et seulement si le
+					// premier codec du canal retour de la caméra est envoyable
+					// depuis un téléphone (G.711, Opus), sinon passer par une
+					// source webrtc: (ci-dessus). streamUrl faisant partie de
+					// $_go2rtcRelevantKeys, basculer l'option ré-enregistre le
+					// flux auprès de go2rtc.
+					$conf['streamUrl'] .= '?backchannel=1';
+				}
+			}
 		}
 
 		JCLog::debug('saveConfiguration details received for id : ' . $widgetId . $cpl . ' - conf : ' . json_encode($conf));
@@ -233,6 +440,46 @@ class JeedomConnectWidget extends config {
 			return null;
 		}
 		JCLog::debug('saveConfiguration done');
+
+		if (in_array($conf['type'] ?? '', array('camera', 'frigate')) && self::go2rtcRegistrationNeeded($previousConf, $conf)) {
+			// POC go2rtc : saveConfig() est le seul chokepoint commun à tous les
+			// chemins de sauvegarde d'un widget (SET_WIDGET, création via
+			// addGlobalWidgets, updateConfig...) - contrairement à
+			// updateWidgetConfig(), qui n'est pas systématiquement appelée (ex:
+			// création d'un nouveau widget caméra). Filtré aux changements
+			// réellement pertinents pour éviter un appel réseau à go2rtc (et un
+			// éventuel démarrage du démon) à chaque sauvegarde d'un widget
+			// caméra, même pour un simple renommage.
+			try {
+				Go2rtc::registerStream($widgetId, $conf);
+			} catch (Exception $e) {
+				JCLog::error('go2rtc registerStream error : ' . $e->getMessage());
+			}
+		}
+
+		if (($conf['type'] ?? '') == 'webview') {
+			// Même chokepoint, même principe de filtrage que go2rtc
+			// ci-dessus - voir cloudflareTunnelRegistrationNeeded().
+			$action = self::cloudflareTunnelRegistrationNeeded($previousConf, $conf);
+			if ($action == 'register') {
+				try {
+					$hostname = CloudflareTunnel::registerRoute($widgetId, $conf['localUrl']);
+					// Persisté sur la conf DE CE WIDGET (comme localUrl) - un
+					// second config::save ciblé plutôt que de retarder le
+					// premier plus haut, pour ne pas bloquer la sauvegarde du
+					// widget lui-même si l'appel au service tunnel échoue.
+					$conf['cloudflareTunnelHostname'] = $hostname;
+					config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
+				} catch (Exception $e) {
+					JCLog::error('CloudflareTunnel registerRoute error : ' . $e->getMessage());
+				}
+			} elseif ($action == 'unregister') {
+				CloudflareTunnel::unregisterRoute($widgetId);
+				unset($conf['cloudflareTunnelHostname']);
+				config::save('widget::' . $widgetId, $conf, self::$_plugin_id);
+			}
+		}
+
 		return $widgetId;
 	}
 
@@ -298,6 +545,22 @@ class JeedomConnectWidget extends config {
 		}
 
 		foreach ($arrayIdToRemove as $idToRemove) {
+			// go2rtc : désenregistre le flux avant suppression, sinon une entrée
+			// orpheline reste indéfiniment dans la config go2rtc pour un widget
+			// qui n'existe plus. Appel sans risque même si le widget n'était pas
+			// en webrtcEnabled (unregisterStream() est un no-op si le stream
+			// n'existe pas).
+			$removedConf = self::getConfiguration($idToRemove, '', null);
+			if (in_array($removedConf['type'] ?? '', array('camera', 'frigate'))) {
+				try {
+					Go2rtc::unregisterStream($idToRemove);
+				} catch (Exception $e) {
+					JCLog::error('go2rtc unregisterStream error : ' . $e->getMessage());
+				}
+			}
+			if (($removedConf['type'] ?? '') == 'webview' && self::webviewNeedsTunnel($removedConf ?? array())) {
+				CloudflareTunnel::unregisterRoute($idToRemove, true);
+			}
 			self::removeWidgetConf('widget::' . $idToRemove);
 		}
 

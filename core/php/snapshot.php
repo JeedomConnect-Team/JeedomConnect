@@ -46,20 +46,7 @@ if (!is_string($snapUrl)) {
 
 
 function getUrl($conf) {
-
-	$url = $conf['snapshotUrl'] ?? '';
-
-	if (isset($conf['snapshotUrlInfo'])) {
-		$cmdId = $conf['snapshotUrlInfo']['id'];
-
-		$cmd = cmd::byId($cmdId);
-		if (is_object($cmd)) {
-			$url = $cmd->execCmd();
-			// JCLog::debug('Snapshot will use url comming from cmd info ['.$cmdId.'] => ' . $url);
-		}
-	}
-	// JCLog::debug('url used :' . $url);
-	return $url;
+	return JeedomConnectWidget::resolveConfUrl($conf, 'snapshotUrl', 'snapshotUrlInfo');
 }
 
 function getData($url, $username, $pwd, $authent) {

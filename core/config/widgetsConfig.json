@@ -5220,6 +5220,42 @@
 					"category": "binary"
 				},
 				{
+					"id": "webrtcEnabled",
+					"name": "Flux vidéo optimisé (go2rtc)",
+					"required": false,
+					"category": "binary",
+					"description": "Flux fluide en LAN et hors LAN via go2rtc, au lieu du flux RTSP/Snapshot classique"
+				},
+				{
+					"id": "audioAutoplay",
+					"name": "Son automatique à l'ouverture",
+					"required": false,
+					"category": "binary",
+					"description": "Active le son dès l'ouverture du widget. Sinon, muet par défaut (bouton son)"
+				},
+				{
+					"id": "controlsAlwaysVisible",
+					"name": "Contrôles toujours visibles",
+					"required": false,
+					"category": "binary",
+					"description": "Boutons de contrôle sur une ligne fixe au-dessus de la vidéo, au lieu des barres affichées au toucher (sauf en plein écran)"
+				},
+				{
+					"id": "networkCaching",
+					"name": "Mise en cache réseau (ms)",
+					"required": false,
+					"category": "string",
+					"description": "300ms par défaut. Augmenter en cas de saccades sur réseau instable, réduire pour moins de latence"
+				},
+				{
+					"id": "disableHwDecoder",
+					"name": "Désactiver le décodage matériel (iOS)",
+					"required": false,
+					"category": "binary",
+					"description": "À activer seulement si l'image reste noire : décodage logiciel, plus gourmand en CPU",
+					"customizable": true
+				},
+				{
 					"id": "authent",
 					"name": "Authentification Snapshot",
 					"required": false,
@@ -5261,14 +5297,14 @@
 					"name": "Rafraîchissement",
 					"required": false,
 					"category": "string",
-					"description": "Durée en seconde entre deux images (1s par défaut)"
+					"description": "Durée en seconde entre deux images (3s par défaut)"
 				},
 				{
 					"id": "compress",
 					"name": "Qualité SnapShot (%)",
 					"required": false,
 					"category": "string",
-					"description": "100% par défaut (haute qualité)"
+					"description": "70% par défaut"
 				},
 				{
 					"id": "resize",
@@ -5423,6 +5459,227 @@
 			]
 		},
 		{
+			"type": "frigate",
+			"name": "Caméra Frigate",
+			"img": "frigate.webp",
+			"description": "Permet d'afficher le live et l'historique d'une caméra Frigate",
+			"variables": [
+				{
+					"name": "room",
+					"descr": "Pièce"
+				}
+			],
+			"options": [
+				{
+					"id": "name",
+					"name": "Nom",
+					"required": true,
+					"category": "string"
+				},
+				{
+					"id": "nameDisplayed",
+					"name": "Nom d'affichage",
+					"description": "Nom affiché sur les pages de configuration. Si vide, alors le nom est utilisé.",
+					"category": "string"
+				},
+				{
+					"id": "subtitle",
+					"name": "Sous-titre",
+					"required": false,
+					"category": "stringList",
+					"choices": [],
+					"description": "Information supplémentaire affichée sur le widget"
+				},
+				{
+					"id": "frigateUrl",
+					"name": "URL Frigate",
+					"required": true,
+					"category": "string",
+					"description": "URL de Frigate, ex. http://192.168.1.50:5000 (port 8971 si l'authentification Frigate est activée)"
+				},
+				{
+					"id": "frigateCameraName",
+					"name": "Nom de la caméra (Frigate)",
+					"required": true,
+					"category": "string",
+					"description": "Nom de la caméra dans la section cameras du config.yml de Frigate (respectez la casse)"
+				},
+				{
+					"id": "webrtcEnabled",
+					"name": "Flux vidéo optimisé (go2rtc)",
+					"required": false,
+					"category": "binary",
+					"description": "Flux fluide en LAN et hors LAN via go2rtc, au lieu du RTSP direct (LAN uniquement). Nécessite un flux go2rtc pour cette caméra dans Frigate"
+				},
+				{
+					"id": "twoWayAudio",
+					"name": "Audio bidirectionnel (micro)",
+					"required": false,
+					"category": "binary",
+					"description": "Bouton micro pour parler via le haut-parleur de la caméra. Nécessite le flux vidéo optimisé (go2rtc) et une caméra compatible"
+				},
+				{
+					"id": "twoWayStreamUrl",
+					"name": "Source directe du flux",
+					"required": false,
+					"category": "string",
+					"description": "Facultatif. Remplace le restream Frigate pour le direct : URL RTSP de la caméra (identifiants inclus), ou flux go2rtc de Frigate en WebRTC (webrtc:ws://<ip frigate>:1984/api/ws?src=<flux>) pour l'audio bidirectionnel quand Frigate gère le canal retour. Voir la documentation"
+				},
+				{
+					"id": "controlsAlwaysVisible",
+					"name": "Contrôles toujours visibles",
+					"required": false,
+					"category": "binary",
+					"description": "Boutons de contrôle sur une ligne fixe au-dessus de la vidéo, au lieu des barres affichées au toucher (sauf en plein écran)"
+				},
+				{
+					"id": "authEnabled",
+					"name": "Authentification Frigate activée",
+					"required": false,
+					"category": "binary"
+				},
+				{
+					"id": "username",
+					"name": "Nom d'utilisateur Frigate",
+					"required": false,
+					"category": "string",
+					"description": "Utilisé uniquement si l'authentification Frigate est activée"
+				},
+				{
+					"id": "password",
+					"name": "Mot de passe Frigate",
+					"required": false,
+					"category": "string",
+					"subtype": "password",
+					"description": "Utilisé uniquement si l'authentification Frigate est activée"
+				},
+				{
+					"id": "mqttEventsInfo",
+					"name": "Commande MQTT statut caméra Frigate",
+					"required": false,
+					"category": "cmd",
+					"type": "info",
+					"subtype": "string",
+					"description": "Facultatif : info du topic MQTT frigate/<caméra>/review_status, pour rafraîchir l'historique à chaque événement (sinon toutes les minutes)"
+				},
+				{
+					"id": "tapDestination",
+					"name": "Écran ouvert au tap",
+					"required": false,
+					"category": "stringList",
+					"defaultChoice": "details",
+					"choices": [
+						{
+							"id": "details",
+							"name": "Vue détail (live)"
+						},
+						{
+							"id": "events",
+							"name": "Historique des événements"
+						}
+					],
+					"description": "Écran ouvert en tapant sur le widget. L'historique reste accessible depuis la vue détail"
+				},
+				{
+					"id": "frigateDefaultView",
+					"name": "Vue par défaut",
+					"required": false,
+					"category": "stringList",
+					"defaultChoice": "live",
+					"choices": [
+						{
+							"id": "live",
+							"name": "Direct"
+						},
+						{
+							"id": "timeline",
+							"name": "Timeline"
+						}
+					],
+					"description": "Vue affichée à l'ouverture de la carte (Direct ou Timeline), modifiable ensuite via les boutons de la carte"
+				},
+				{
+					"id": "upAction",
+					"name": "Direction haut",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_UP"
+				},
+				{
+					"id": "downAction",
+					"name": "Direction bas",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_DOWN"
+				},
+				{
+					"id": "leftAction",
+					"name": "Direction gauche",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_LEFT"
+				},
+				{
+					"id": "rightAction",
+					"name": "Direction droite",
+					"required": false,
+					"category": "cmd",
+					"type": "action",
+					"subtype": "other",
+					"generic_type": "CAMERA_RIGHT"
+				},
+				{
+					"id": "image",
+					"name": "Image",
+					"required": false,
+					"category": "img"
+				},
+				{
+					"id": "statusImages",
+					"name": "Images sous conditions",
+					"required": false,
+					"category": "ifImgs"
+				},
+				{
+					"id": "moreWidgets",
+					"name": "Widgets supplémentaires",
+					"category": "widgets",
+					"description": "Widgets supplémentaires affichés dans la vue détails"
+				},
+				{
+					"id": "display",
+					"name": "Affichage forcé",
+					"required": false,
+					"category": "stringList",
+					"choices": [
+						{
+							"id": "widget",
+							"name": "Carte"
+						},
+						{
+							"id": "miniWidget",
+							"name": "Vignette"
+						},
+						{
+							"id": "bigWidget",
+							"name": "Grand widget"
+						},
+						{
+							"id": "detail",
+							"name": "Détail"
+						}
+					],
+					"description": "Affichage forcé du widget"
+				}
+			]
+		},
+		{
 			"type": "appLauncher",
 			"name": "Lanceur d'application",
 			"img": "droid.webp",
@@ -5459,7 +5716,7 @@
 					"name": "Nom du package",
 					"required": true,
 					"category": "string",
-					"description": "Nom du package Android de l'application. Vous pouvez utiliser l'application Package Name Viewer 2.0 pour l'obtenir"
+					"description": "Nom du package Android de l'application (visible avec l'app Package Name Viewer 2.0)"
 				},
 				{
 					"id": "image",
@@ -6990,7 +7247,6 @@
 			"img": "component-button.webp",
 			"name": "Bouton",
 			"description": "Affiche un bouton et permet de réaliser 1 à plusieurs actions à la suite",
-			"noMoreInfos": true,
 			"options": [
 				{
 					"id": "name",

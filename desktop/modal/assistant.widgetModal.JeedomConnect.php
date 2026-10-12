@@ -64,6 +64,7 @@ if (!isConnect('admin')) {
 			<div class="form-group">
 				<img id="widgetImg" />
 				<div class="alert alert-info" id="widgetDescription"></div>
+				<a class="btn btn-info btn-xs" id="widgetDocLink" href="#" target="_blank" style="display:none; margin-bottom: 10px;"><i class="fas fa-book"></i> {{Documentation du widget}}</a>
 				<div class="alert alert-info" id="widgetVariables"></div>
 				<div class="alert alert-info" id="widgetInclusion" style="display:none;"></div>
 				<div class="alert alert-info" id="widgetPerso" style="display:none;"></div>

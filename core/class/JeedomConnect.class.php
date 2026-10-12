@@ -25,6 +25,8 @@ require_once dirname(__FILE__) . '/JeedomConnectUtils.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectLogs.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectDeviceControl.class.php';
 require_once dirname(__FILE__) . '/JeedomConnectAutomations.class.php';
+require_once dirname(__FILE__) . '/Go2rtc.class.php';
+require_once dirname(__FILE__) . '/CloudflareTunnel.class.php';
 require_once dirname(__FILE__) . "/apiHelper.class.php";
 
 
@@ -321,8 +323,36 @@ class JeedomConnect extends eqLogic {
 		}
 		exec("{$pythonPath} -m pip freeze", $packages_installed);
 		$packages = join("||", $packages_installed);
+		// Noms installés normalisés (PEP 503 : casse et -/_/. équivalents),
+		// pour les lignes de requirements.txt SANS contrainte de version
+		// (cas de toutes les lignes actuelles) : la regex ci-dessous ne
+		// reconnaît que "paquet==x"/">="/"~=" et ignorait donc silencieusement
+		// ces lignes - un paquet absent du venv (ex. websocket-client, requis
+		// par resources/webrtcBridge.py) laissait les dépendances "OK" alors
+		// que le pont WebRTC ne pouvait pas démarrer ("Impossible de démarrer
+		// le pont WebRTC", constaté chez un utilisateur), sans jamais inviter
+		// à les réinstaller.
+		$normalize = function ($name) {
+			return strtolower(preg_replace('/[-_.]+/', '-', trim($name)));
+		};
+		$installedNames = array();
+		foreach ($packages_installed as $installedLine) {
+			if (preg_match('/^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(==|@)/', $installedLine, $m) === 1) {
+				$installedNames[$normalize($m[1])] = true;
+			}
+		}
 		exec("cat {$requirementsPath}", $packages_needed);
 		foreach ($packages_needed as $line) {
+			$line = trim($line);
+			if ($line === '' || strpos($line, '#') === 0) {
+				continue;
+			}
+			if (preg_match('/^([A-Za-z0-9][A-Za-z0-9._-]*)$/', $line, $bare) === 1) {
+				if (!isset($installedNames[$normalize($bare[1])])) {
+					return false;
+				}
+				continue;
+			}
 			if (preg_match('/([^\s]+)[\s]*([>=~]=)[\s]*([\d+\.?]+)$/', $line, $need) === 1) {
 				if (preg_match('/' . $need[1] . '==([\d+\.?]+)/', $packages, $install) === 1) {
 					if ($need[2] == '==' && $need[3] != $install[1]) {
@@ -385,7 +415,8 @@ class JeedomConnect extends eqLogic {
 
 	public static function backupExclude() {
 		return [
-			'resources/sendNotif/'
+			'resources/sendNotif/',
+			'resources/go2rtc/'
 		];
 	}
 
@@ -1962,15 +1993,29 @@ class JeedomConnect extends eqLogic {
 
 
 	/**
-	 * @return listener
+	 * Max number of command ids stored in a single listener row.
+	 * Core's `listener.event` column is a `varchar(511)` holding a JSON array of `"#id#"`
+	 * entries (~10-12 chars each with quotes/comma) - a single listener can only hold ~40-50
+	 * ids before MySQL strict mode rejects the save with "Data too long for column 'event'".
+	 * Spreading ids across several listener rows keeps each row well under that limit.
 	 */
-	private function getListener($fx = 'sendCmdInfoToShortcut') {
-		return listener::byClassAndFunction(__CLASS__, $fx, array('id' => $this->getId()));
+	private const LISTENER_CHUNK_SIZE = 30;
+
+	/**
+	 * @return listener[]
+	 */
+	private function getListeners($fx = 'sendCmdInfoToShortcut') {
+		$listeners = array_filter(listener::byClass(__CLASS__), function ($listener) use ($fx) {
+			return $listener->getFunction() === $fx && $listener->getOption('id') == $this->getId();
+		});
+		usort($listeners, function ($a, $b) {
+			return $a->getOption('chunk', 0) <=> $b->getOption('chunk', 0);
+		});
+		return array_values($listeners);
 	}
 
 	private function removeListener($fx) {
-		$listener = $this->getListener($fx);
-		if (is_object($listener)) {
+		foreach ($this->getListeners($fx) as $listener) {
 			$listener->remove();
 		}
 	}
@@ -1978,31 +2023,41 @@ class JeedomConnect extends eqLogic {
 	private function setListener(array $cmd_ids = array(), string $fx = 'sendCmdInfoToShortcut') {
 		JCLog::debug('------ setListener started -- adding listener for fx ' . $fx);
 		JCLog::trace('------ setListener started -- ids ' . json_encode($cmd_ids));
+
 		if ($this->getIsEnable() == 0 || count($cmd_ids) == 0) {
 			JCLog::trace('remove listener');
 			$this->removeListener($fx);
 			return;
 		}
 
-		/** @var listener $listener */
-		$listener = $this->getListener($fx);
-		if (!is_object($listener)) {
-			$listener = new listener();
-			$listener->setClass(__CLASS__);
-			$listener->setFunction($fx);
-			$listener->setOption(array('id' => $this->getId()));
-		}
-		$listener->emptyEvent();
+		$existingListeners = $this->getListeners($fx);
+		$chunks = array_chunk(array_values(array_filter($cmd_ids, 'is_numeric')), self::LISTENER_CHUNK_SIZE);
 
-		foreach ($cmd_ids as $cmd_id) {
-			if (!is_numeric($cmd_id)) continue;
+		foreach ($chunks as $index => $chunkIds) {
+			/** @var listener $listener */
+			$listener = $existingListeners[$index] ?? null;
+			if (!is_object($listener)) {
+				$listener = new listener();
+				$listener->setClass(__CLASS__);
+				$listener->setFunction($fx);
+				$listener->setOption(array('id' => $this->getId(), 'chunk' => $index));
+			}
+			$listener->emptyEvent();
 
-			$cmd = cmd::byId($cmd_id);
-			if (!is_object($cmd)) continue;
-			JCLog::debug(' -- add listener for cmd ' . $cmd_id);
-			$listener->addEvent($cmd_id);
+			foreach ($chunkIds as $cmd_id) {
+				$cmd = cmd::byId($cmd_id);
+				if (!is_object($cmd)) continue;
+				JCLog::debug(' -- add listener for cmd ' . $cmd_id . ' (chunk ' . $index . ')');
+				$listener->addEvent($cmd_id);
+			}
+			$listener->save();
 		}
-		$listener->save();
+
+		// Drop leftover rows from a previous, larger chunk count (e.g. fewer active controls now).
+		for ($i = count($chunks); $i < count($existingListeners); $i++) {
+			$existingListeners[$i]->remove();
+		}
+
 		JCLog::debug('------ setListener end for fx ' . $fx);
 	}
 
@@ -2343,6 +2398,10 @@ class JeedomConnectCmd extends cmd {
 		'custom' => true
 	);
 
+	// notification options accepted as direct keys of the execCmd() options array
+	// (ex: "gotoPageId" => 12), in addition to the "key=value|key=value" syntax in the title
+	const NOTIF_OPTIONS = array('gotoPageId', 'gotoPageIdOnTap', 'gotoWidgetId', 'launchActivity');
+
 	public function dontRemoveCmd() {
 		return true;
 	}
@@ -2420,9 +2479,12 @@ class JeedomConnectCmd extends cmd {
 				);
 				if (isset($_options["files"]) || isset($myData["files"])) {
 					$files = array();
-					$arrayMerge = array_merge($_options["files"] ?? array(), $myData["files"] ?? array());
+					$optFiles = $_options["files"] ?? array();
+					if (!is_array($optFiles)) $optFiles = explode(',', $optFiles);
+					$arrayMerge = array_merge($optFiles, $myData["files"] ?? array());
 					foreach ($arrayMerge as $file) {
-						if (realpath($file)) array_push($files, realpath($file));
+						$file = trim($file);
+						if ($file != '' && realpath($file)) array_push($files, realpath($file));
 					}
 					$data['payload']['files'] = $files;
 				}
@@ -2884,7 +2946,7 @@ class JeedomConnectCmd extends cmd {
 		}
 
 		if (empty($optionsSupp)) {
-			$titre = $_options['title'] ?: '';
+			$titre = $_options['title'] ?? '';
 		} else {
 			foreach ($optionsSupp as $key => $value) {
 				$optionsSupp[$key] =  trim($value, '"');
@@ -2897,6 +2959,12 @@ class JeedomConnectCmd extends cmd {
 			if (isset($optionsSupp['files'])) {
 				$files = explode(',', $optionsSupp['files']);
 				unset($args['files']);
+			}
+		}
+
+		foreach (self::NOTIF_OPTIONS as $key) {
+			if (isset($_options[$key]) && is_scalar($_options[$key]) && trim($_options[$key]) !== '') {
+				$args[$key] = trim($_options[$key]);
 			}
 		}
 		return array('title' => $titre, 'args' => $args, 'files' => $files);

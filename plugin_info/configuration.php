@@ -186,6 +186,10 @@ sendVarToJS('userHash', $userHash);
     </div>
 
     <br />
+    <!-- TURN hors LAN + tunnel webview : voir la modale "Services de
+         streaming" (page Gestion), desktop/modal/streamingServices.JeedomConnect.php -->
+
+    <br />
     <!-- CUSTOM ZONE -->
     <div class="alert alert-success" style="text-align:center;">
       {{Personnalisation}}

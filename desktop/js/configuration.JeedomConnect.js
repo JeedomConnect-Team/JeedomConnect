@@ -1,4 +1,8 @@
 
+// Gestion TURN hors LAN + tunnel webview : voir
+// streamingServices.JeedomConnect.js (modale "Services de streaming",
+// page Gestion).
+
 $('.jeedomConnect').off('click', '#removeAllWidgets').on('click', '#removeAllWidgets', function () {
     $('.actions-detail').hideAlert();
     var warning = "<i source='md' name='alert-outline' style='color:#ff0000' class='mdi mdi-alert-outline'></i>";

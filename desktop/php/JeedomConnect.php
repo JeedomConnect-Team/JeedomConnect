@@ -210,6 +210,12 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 						<span>{{Configuration}}</span>
 					</div>
 
+					<div class="cursor eqLogicAction logoSecondary" data-action="showStreamingServices" style="color:#5cb85c;">
+						<i class="fas fa-satellite-dish"></i>
+						<br>
+						<span style="color:var(--txt-color)">{{Services de streaming}}</span>
+					</div>
+
 					<?php if ($hasErrorPage || $hasWarningPage) { ?>
 						<div class="cursor eqLogicAction" data-action="showError" style="<?= $hasErrorPage ? 'color:red;' : 'color:orange;' ?>">
 							<i class="fas fa-exclamation-circle"></i>

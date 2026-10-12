@@ -8,6 +8,7 @@ import threading
 import time
 import sys
 import uuid
+import logging
 
 from resources.JeedomConnectd import logger
 
@@ -421,6 +422,7 @@ _apikey = args.apikey
 _callback = args.callback
 
 logger.setLevel(jeedom_utils.convert_log_level(_log_level)) 
+logging.getLogger('websocket_server').setLevel(jeedom_utils.convert_log_level(_log_level))
 
 logger.info("Start daemon")
 logger.info("Log level : " + str(_log_level))
