@@ -2398,6 +2398,10 @@ class JeedomConnectCmd extends cmd {
 		'custom' => true
 	);
 
+	// notification options accepted as direct keys of the execCmd() options array
+	// (ex: "gotoPageId" => 12), in addition to the "key=value|key=value" syntax in the title
+	const NOTIF_OPTIONS = array('gotoPageId', 'gotoPageIdOnTap', 'gotoWidgetId', 'launchActivity');
+
 	public function dontRemoveCmd() {
 		return true;
 	}
@@ -2475,9 +2479,12 @@ class JeedomConnectCmd extends cmd {
 				);
 				if (isset($_options["files"]) || isset($myData["files"])) {
 					$files = array();
-					$arrayMerge = array_merge($_options["files"] ?? array(), $myData["files"] ?? array());
+					$optFiles = $_options["files"] ?? array();
+					if (!is_array($optFiles)) $optFiles = explode(',', $optFiles);
+					$arrayMerge = array_merge($optFiles, $myData["files"] ?? array());
 					foreach ($arrayMerge as $file) {
-						if (realpath($file)) array_push($files, realpath($file));
+						$file = trim($file);
+						if ($file != '' && realpath($file)) array_push($files, realpath($file));
 					}
 					$data['payload']['files'] = $files;
 				}
@@ -2939,7 +2946,7 @@ class JeedomConnectCmd extends cmd {
 		}
 
 		if (empty($optionsSupp)) {
-			$titre = $_options['title'] ?: '';
+			$titre = $_options['title'] ?? '';
 		} else {
 			foreach ($optionsSupp as $key => $value) {
 				$optionsSupp[$key] =  trim($value, '"');
@@ -2952,6 +2959,12 @@ class JeedomConnectCmd extends cmd {
 			if (isset($optionsSupp['files'])) {
 				$files = explode(',', $optionsSupp['files']);
 				unset($args['files']);
+			}
+		}
+
+		foreach (self::NOTIF_OPTIONS as $key) {
+			if (isset($_options[$key]) && is_scalar($_options[$key]) && trim($_options[$key]) !== '') {
+				$args[$key] = trim($_options[$key]);
 			}
 		}
 		return array('title' => $titre, 'args' => $args, 'files' => $files);

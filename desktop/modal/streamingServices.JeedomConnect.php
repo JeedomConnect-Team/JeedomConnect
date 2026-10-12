@@ -27,12 +27,14 @@ require_once dirname(__FILE__) . '/../../core/class/JeedomConnect.class.php';
 // direct en PHP pour les champs qui affichent une valeur déjà enregistrée
 // (le mot de passe/jeton API, lui, reste volontairement vide - jamais
 // réaffiché, un champ laissé vide conserve la valeur existante à la
-// sauvegarde, comportement générique Jeedom inchangé).
+// sauvegarde - filtré explicitement dans streamingServices.JeedomConnect.js,
+// le core, lui, enregistrerait la chaîne vide).
 $currentTurnMode = config::byKey('turnMode', 'JeedomConnect', 'cloudflare');
 $currentCloudflareTurnKeyId = config::byKey('cloudflareTurnKeyId', 'JeedomConnect', '');
 // Indicateur visuel uniquement (placeholder, jamais une value) : confirme
 // qu'un jeton EST enregistré sans jamais le réafficher ni risquer de
-// l'écraser si le champ est soumis tel quel (vide = conserve l'existant).
+// l'écraser si le champ est soumis tel quel (vide = conserve l'existant,
+// voir le filtrage dans le JS de la modale).
 $hasCloudflareTurnApiToken = config::byKey('cloudflareTurnApiToken', 'JeedomConnect', '') !== '';
 ?>
 <div id="streamingServicesModalRoot">

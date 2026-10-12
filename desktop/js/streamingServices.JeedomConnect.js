@@ -27,8 +27,16 @@ $('#saveTurnConfig').off('click').on('click', function () {
     $result.removeClass('text-success text-danger').text('');
     $btn.prop('disabled', true);
 
+    // Le jeton API n'est jamais réaffiché (champ toujours vide au chargement) :
+    // l'envoyer vide l'écraserait (config::save enregistre '' tel quel). Vide =
+    // conserver le jeton existant, comme SET_CLOUDFLARE_TURN_CONFIG côté app.
+    var configuration = document.getElementById('turnHorsLanPanel').getJeeValues('.configKey')[0];
+    if (!configuration.cloudflareTurnApiToken || configuration.cloudflareTurnApiToken.trim() === '') {
+        delete configuration.cloudflareTurnApiToken;
+    }
+
     jeedom.config.save({
-        configuration: document.getElementById('turnHorsLanPanel').getJeeValues('.configKey')[0],
+        configuration: configuration,
         plugin: 'JeedomConnect',
         error: function (error) {
             $btn.prop('disabled', false);
