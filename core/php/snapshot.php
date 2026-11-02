@@ -53,11 +53,18 @@ function getData($url, $username, $pwd, $authent) {
 	$ch = curl_init();
 
 	$replaceArr = array(
-		'#username#' => urlencode($username),
-		'#password#' => urlencode($pwd),
+		'#username#' => rawurlencode($username ?? ''),
+		'#password#' => rawurlencode($pwd ?? ''),
 	);
 
-	$url = str_replace(array_keys($replaceArr), $replaceArr, $url);
+	$url = str_replace(array_keys($replaceArr), $replaceArr, trim((string) $url));
+	// curl >= 7.78 (Debian 12) rejette les espaces bruts : CURLE_URL_MALFORMAT
+	$url = str_replace(' ', '%20', $url);
+
+	if ($url === '') {
+		JCLog::warning('Error taking snapshot => empty snapshot url');
+		return '';
+	}
 
 	if (!is_null($username) && !is_null($pwd)) {
 		$userPwd = $username . ':' . $pwd;
@@ -87,7 +94,8 @@ function getData($url, $username, $pwd, $authent) {
 	curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 	$data = curl_exec($ch);
 	if ($error = curl_error($ch)) {
-		JCLog::warning('Error taking snapshot => ' . $error);
+		$logUrl = is_null($pwd) ? $url : str_replace(array($pwd, rawurlencode($pwd)), '***', $url);
+		JCLog::warning('Error taking snapshot (' . curl_errno($ch) . ') => ' . $error . ' - url [' . $logUrl . ']');
 	}
 	curl_close($ch);
 	JCLog::debug('Snapshot sent - data size => ' . strlen($data));
