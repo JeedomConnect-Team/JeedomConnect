@@ -20,7 +20,7 @@ require_once dirname(__FILE__) . "/../../../../core/php/core.inc.php";
 require_once dirname(__FILE__) . "/FrigateClient.class.php";
 
 class apiHelper {
-  public static $_skipLog = array('GET_EVENTS', 'GET_LOG', 'SET_FACE_DETECTED');
+  public static $_skipLog = array('GET_EVENTS', 'GET_LOG', 'SET_FACE_DETECTED', 'GET_CAR_EVENTS');
 
   /**
    * Dispatch API call
@@ -638,6 +638,32 @@ class apiHelper {
         case 'GET_CONTROL_DEVICES':
           $result = JeedomConnectDeviceControl::getDevices($eqLogic, $param['activeControlIds'] ?? null);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CONTROL_DEVICES');
+          break;
+
+        case 'GET_CAR_CONFIG':
+          $result = JeedomConnectCar::getConfig($eqLogic);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_CONFIG');
+          break;
+
+        case 'SET_CAR_FAVORITES':
+          $result = JeedomConnectCar::setFavorites($eqLogic, $param['favorites'] ?? null);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_CONFIG');
+          break;
+
+        case 'SET_CAR_NAVIGATION':
+          $result = JeedomConnectCar::setNavigation($eqLogic, $param['navigation'] ?? null);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_CONFIG');
+          break;
+
+        case 'GET_CAR_DEVICES':
+          $result = JeedomConnectCar::getDevices($eqLogic);
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_DEVICES');
+          break;
+
+        case 'GET_CAR_EVENTS':
+          // long polling over plain HTTP only: waiting here would block the websocket daemon for every client
+          $result = JeedomConnectCar::getEvents($eqLogic, $type != 'API' ? null : ($param['lastReadTimestamp'] ?? null));
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_DEVICES');
           break;
 
         case 'ADD_AUTOMATION':
