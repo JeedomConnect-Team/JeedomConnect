@@ -792,6 +792,27 @@ try {
 		}
 	}
 
+	// car configuration (desktop/modal/car.JeedomConnect.php), same as the app's Preferences -> Car
+	if (in_array(init('action'), array('getCarConfig', 'setCarFavorites', 'setCarNavigation'))) {
+		/** @var JeedomConnect $eqLogic */
+		$eqLogic = eqLogic::byId(init('eqLogicId'));
+		if (!is_object($eqLogic) || $eqLogic->getEqType_name() != 'JeedomConnect') {
+			ajax::error('Erreur - équipement introuvable');
+		}
+		switch (init('action')) {
+			case 'getCarConfig':
+				ajax::success(JeedomConnectCar::getConfig($eqLogic));
+				break;
+			case 'setCarFavorites':
+				$favorites = json_decode(init('favorites', '[]'), true);
+				ajax::success(JeedomConnectCar::setFavorites($eqLogic, is_array($favorites) ? $favorites : array()));
+				break;
+			case 'setCarNavigation':
+				ajax::success(JeedomConnectCar::setNavigation($eqLogic, init('navigation')));
+				break;
+		}
+	}
+
 	if (init('action') == 'removeNotifAll') {
 		$key = init('key');
 		// JCLog::debug('Trying to remove all cmd with logicalId : ' . $key);
