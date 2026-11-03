@@ -1313,7 +1313,8 @@ class JeedomConnect extends eqLogic {
 	}
 
 	public function sendNotif($notifId, $data, $cmdId = null) {
-		if ($this->getConfiguration('token') == null) {
+		$hasPhone = $this->getConfiguration('token') != null;
+		if (!$hasPhone && !JeedomConnectCar::hasCarTokens($this)) {
 			JCLog::info("No token defined. Please connect your device first");
 			return;
 		}
@@ -1349,6 +1350,18 @@ class JeedomConnect extends eqLogic {
 			$data = JeedomConnectUtils::getNotifData($data, $this);
 		}
 		$postData["data"] = $data;
+
+		// Android Automotive apps signed in with this equipment: notifications marked "Dans la voiture"
+		if ($data["type"] == "DISPLAY_NOTIF" && !empty($data["payload"]["car"]) && JeedomConnectCar::hasCarTokens($this)) {
+			if (!is_executable($binPath)) {
+				chmod($binPath, 0555);
+			}
+			JeedomConnectCar::sendNotif($this, $binPath, $data);
+		}
+		if (!$hasPhone) {
+			JCLog::info("No phone token defined, notification only sent to the car");
+			return;
+		}
 
 		if ($this->getConfiguration('platformOs') == 'ios' && $data["type"] == "DISPLAY_NOTIF") {
 			// JCLog::info("on passe chez ios");

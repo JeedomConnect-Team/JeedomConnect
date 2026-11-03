@@ -655,6 +655,12 @@ class apiHelper {
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_CONFIG');
           break;
 
+        case 'SET_CAR_TOKEN':
+          // Android Automotive app: its own FCM token, next to the phone's one (see JeedomConnectCar::sendNotif)
+          $result = JeedomConnectCar::setCarToken($eqLogic, $param['token'] ?? null, !empty($param['remove']));
+          return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_TOKEN');
+          break;
+
         case 'GET_CAR_DEVICES':
           $result = JeedomConnectCar::getDevices($eqLogic);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_DEVICES');

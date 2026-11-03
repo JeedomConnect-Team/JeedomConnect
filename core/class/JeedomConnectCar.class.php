@@ -314,6 +314,87 @@ class JeedomConnectCar {
         return in_array($navigation, self::NAVIGATION_MODES, true) ? $navigation : 'none';
     }
 
+    /** most recent car tokens kept per equipment (several cars can sign in with the same equipment) */
+    const MAX_CAR_TOKENS = 5;
+
+    /**
+     * FCM token of an Android Automotive app signed in with this equipment. Kept apart from the phone's
+     * token (configuration 'token'): the car shares the phone's equipment, overwriting it would stop the
+     * phone notifications.
+     *
+     * @param JeedomConnect $eqLogic
+     * @param string|null $token
+     * @param bool $remove the car signs out
+     * @return array count: tokens registered
+     */
+    public static function setCarToken($eqLogic, $token, $remove = false) {
+        if (!is_object($eqLogic)) {
+            throw new Exception('No equipment found');
+        }
+        if (!is_string($token) || $token === '') {
+            throw new Exception('token missing');
+        }
+        $tokens = array_values(array_filter(self::getCarTokens($eqLogic), function ($item) use ($token) {
+            return $item['token'] !== $token;
+        }));
+        if (!$remove) {
+            $tokens[] = array('token' => $token, 'time' => time());
+            $tokens = array_slice($tokens, -self::MAX_CAR_TOKENS);
+        }
+        JCLog::debug('car - ' . ($remove ? 'removing' : 'registering') . ' a car notification token for ' . $eqLogic->getName() . ', ' . count($tokens) . ' registered');
+        $eqLogic->setConfiguration('carTokens', $tokens);
+        $eqLogic->save(true);
+        return array('count' => count($tokens));
+    }
+
+    /** @return array [{token, time}] */
+    private static function getCarTokens($eqLogic) {
+        $tokens = $eqLogic->getConfiguration('carTokens', array());
+        return is_array($tokens) ? array_values(array_filter($tokens, function ($item) {
+            return is_array($item) && !empty($item['token']);
+        })) : array();
+    }
+
+    public static function hasCarTokens($eqLogic) {
+        return count(self::getCarTokens($eqLogic)) > 0;
+    }
+
+    /**
+     * Sends a notification marked "Dans la voiture" (option car of its config) to the Android Automotive
+     * apps signed in with this equipment, same binary and payload as the phone (JeedomConnect::sendNotif).
+     * The phone shows it in Android Auto itself. Tokens FCM reports as unregistered (app removed,
+     * data cleared) are dropped.
+     *
+     * @param JeedomConnect $eqLogic
+     * @param string $binPath the sendNotif binary
+     * @param array $data {type, payload} as built by sendNotif
+     */
+    public static function sendNotif($eqLogic, $binPath, $data) {
+        $tokens = self::getCarTokens($eqLogic);
+        $payload = json_encode($data["payload"], JSON_HEX_APOS);
+        $stale = array();
+        foreach ($tokens as $item) {
+            $cmd = $binPath . " -token='" . $item['token'] . "' -os='android' -type='" . $data["type"] . "' -payload='" . $payload . "' 2>&1";
+            $output = shell_exec($cmd);
+            $outputJson = preg_replace('/.*response:( )/', '', strval($output));
+            $result = is_json($outputJson) ? json_decode($outputJson, true) : null;
+            if ($result !== null && ($result['SuccessCount'] ?? 0) == 1) {
+                JCLog::debug('car - notification sent to a car');
+                continue;
+            }
+            JCLog::warning('car - notification not delivered to a car: ' . strval($output));
+            if (preg_match('/not.?registered|unregistered|registration-token|invalid.?argument/i', strval($output))) {
+                $stale[] = $item['token'];
+            }
+        }
+        if (count($stale) > 0) {
+            $eqLogic->setConfiguration('carTokens', array_values(array_filter($tokens, function ($item) use ($stale) {
+                return !in_array($item['token'], $stale, true);
+            })));
+            $eqLogic->save(true);
+        }
+    }
+
     /**
      * Tree of the favorites for the room / type / menu navigation, only with branches holding favorites:
      * [{id, title, key?, icon?, devices: [device ids], groups: [same]}]
