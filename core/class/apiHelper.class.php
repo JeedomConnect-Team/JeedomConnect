@@ -662,7 +662,7 @@ class apiHelper {
 
         case 'GET_CAR_EVENTS':
           // long polling over plain HTTP only: waiting here would block the websocket daemon for every client
-          $result = JeedomConnectCar::getEvents($eqLogic, $type != 'API' ? null : ($param['lastReadTimestamp'] ?? null));
+          $result = JeedomConnectCar::getEvents($eqLogic, $type != 'API' ? null : ($param['lastReadTimestamp'] ?? null), $param['lastHash'] ?? null);
           return JeedomConnectUtils::addTypeInPayload($result, 'SET_CAR_DEVICES');
           break;
 
