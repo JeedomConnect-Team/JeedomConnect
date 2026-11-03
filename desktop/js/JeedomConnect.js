@@ -1311,6 +1311,12 @@ function openAssistantNotificationModal(id, event) {
   $('#md_modal').load('index.php?v=d&plugin=JeedomConnect&modal=notifs.JeedomConnect&eqLogicId=' + id).dialog('open');
 }
 
+// favorites and navigation shown in the car (same as the app's Preferences -> Car)
+$("#carConfig-btn").click(function () {
+  $('#md_modal').dialog({ title: "{{Configuration voiture}}" });
+  $('#md_modal').load('index.php?v=d&plugin=JeedomConnect&modal=car.JeedomConnect&eqLogicId=' + $('.eqLogicAttr[data-l1key=id]').value()).dialog('open');
+});
+
 // ------------- END ASSISTANT BUTTON
 
 

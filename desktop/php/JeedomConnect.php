@@ -620,6 +620,18 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 							</div>
 
 							<div class="form-group">
+								<label class="col-sm-3 control-label">{{Voiture}}
+									<sup>
+										<i class="fas fa-question-circle floatright" style="color: var(--al-info-color) !important;" title="{{Favoris et navigation affichés dans Android Auto et sur les voitures avec Android intégré}}"></i>
+									</sup>
+								</label>
+								<div class="col-sm-7">
+									<a class="btn btn-success" id="carConfig-btn"><i class="fas fa-car"></i> {{Configurer}}
+									</a>
+								</div>
+							</div>
+
+							<div class="form-group">
 								<label class="col-sm-3 control-label">{{Accès scénarios}}</label>
 								<div class="col-sm-7">
 									<input class="eqLogicAttr form-control" data-l1key="configuration" data-l2key="scenariosEnabled" type="checkbox" placeholder="{{}}">

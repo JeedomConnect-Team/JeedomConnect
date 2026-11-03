@@ -48,6 +48,17 @@ function setNotifModalData(options) {
     </div></div></div></li>`;
 
         items.push(ongoingHtml);
+
+        //Car (Android Auto / Android Automotive), read by the app's displayNotification
+        var carValue = notif ? notif.car ? "checked" : "" : "";
+        var carHtml = `<li><div class='form-group'>
+    <label class='col-xs-3'>Dans la voiture</label>
+    <div class='col-xs-9'>
+      <div class="description">Affiche aussi cette notification sur l'écran de la voiture (Android Auto)</div>
+    <div class='input-group'>
+      <input type="checkbox" style="width:150px;" id="car-input" ${carValue}>
+    </div></div></div></li>`;
+        items.push(carHtml);
     } else {
         //Critical alert
         var criticalValue = notif ? notif.critical ? "checked" : "" : "";

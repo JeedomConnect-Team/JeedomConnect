@@ -259,13 +259,13 @@ class JeedomConnectDeviceControl {
                         $controlTemplate = "TYPE_TOGGLE";
                     }
                 }
-                if ($controlTemplate == "TYPE_TOGGLE" || $controlTemplate = "TYPE_TOGGLE_RANGE") {
+                if ($controlTemplate == "TYPE_TOGGLE" || $controlTemplate == "TYPE_TOGGLE_RANGE") {
                     $device['onAction'] = JeedomConnectUtils::getActionCmd($widget['upAction']);
                     $device['offAction'] = JeedomConnectUtils::getActionCmd($widget['downAction']);
                     $device['status'] = self::getTranslatedStatus($cmdData, $widget);
                     $device['statusText'] = ($device['status'] == 'on') ? "Ouvert" : "Fermé";
                 }
-                if (($controlTemplate == "TYPE_RANGE" || $controlTemplate = "TYPE_TOGGLE_RANGE") && key_exists('positionAction', $widget)) {
+                if (($controlTemplate == "TYPE_RANGE" || $controlTemplate == "TYPE_TOGGLE_RANGE") && key_exists('positionAction', $widget)) {
                     $device['rangeAction'] = JeedomConnectUtils::getActionCmd($widget['positionAction']);
                     JeedomConnectUtils::getRangeStatus($cmdData, $widget['statusInfo'], $device);
                 }
