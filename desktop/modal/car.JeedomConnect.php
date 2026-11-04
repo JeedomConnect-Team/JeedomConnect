@@ -35,7 +35,7 @@ sendVarToJS('jcCarDefaultImage', plugin::byId('JeedomConnect')->getPathImgIcon()
 <div id="jc-car" style="padding:0 10px;">
   <div style="display:none;" id="jc-car-alert"></div>
   <div class="alert alert-info" style="margin-top:5px;">
-    {{Ce qui s'affiche dans Android Auto et sur les voitures avec Android intégré pour cet équipement. Les mêmes réglages que dans l'application : Préférences → Voiture. Chaque modification est enregistrée immédiatement.}}
+    {{Ce qui s'affiche dans Android Auto, CarPlay et sur les voitures avec Android intégré pour cet équipement. Les mêmes réglages que dans l'application : Préférences → Voiture. Chaque modification est enregistrée immédiatement.}}
   </div>
 
   <legend><i class="fas fa-sitemap"></i> {{Navigation}}</legend>

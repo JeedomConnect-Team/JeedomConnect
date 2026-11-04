@@ -622,7 +622,7 @@ $jsClickCommunityPost = 'createCommunityPostJC';
 							<div class="form-group">
 								<label class="col-sm-3 control-label">{{Voiture}}
 									<sup>
-										<i class="fas fa-question-circle floatright" style="color: var(--al-info-color) !important;" title="{{Favoris et navigation affichés dans Android Auto et sur les voitures avec Android intégré}}"></i>
+										<i class="fas fa-question-circle floatright" style="color: var(--al-info-color) !important;" title="{{Favoris et navigation affichés dans Android Auto, CarPlay et sur les voitures avec Android intégré}}"></i>
 									</sup>
 								</label>
 								<div class="col-sm-7">
