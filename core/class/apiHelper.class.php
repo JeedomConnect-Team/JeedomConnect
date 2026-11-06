@@ -1110,7 +1110,7 @@ class apiHelper {
         }
         if ($item == 'badge') {
           array_push($conditionsArr, $value["visibility"] ?? "");
-          if (is_array($value["colors"])) {
+          if (is_array($value["colors"] ?? null)) {
             foreach ($value["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
@@ -1129,9 +1129,9 @@ class apiHelper {
       foreach ($config['payload']['tabs'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
         if (isset($menu['badge'])) {
-          array_push($conditionsArr, $menu["visibility"] ?? "");
-          if (is_array($menu["colors"])) {
-            foreach ($menu["colors"] as $key => $color) {
+          array_push($conditionsArr, $menu["badge"]["visibility"] ?? "");
+          if (is_array($menu["badge"]["colors"] ?? null)) {
+            foreach ($menu["badge"]["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
           }
@@ -1142,9 +1142,9 @@ class apiHelper {
       foreach ($config['payload']['sections'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
         if (isset($menu['badge'])) {
-          array_push($conditionsArr, $menu["visibility"] ?? "");
-          if (is_array($menu["colors"])) {
-            foreach ($menu["colors"] as $key => $color) {
+          array_push($conditionsArr, $menu["badge"]["visibility"] ?? "");
+          if (is_array($menu["badge"]["colors"] ?? null)) {
+            foreach ($menu["badge"]["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
           }
