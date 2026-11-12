@@ -3450,6 +3450,14 @@ class apiHelper {
     if (isset($infos['smsNumber'])) {
       $eqLogic->checkAndUpdateCmd('smsNumber', $infos['smsNumber']);
     }
+    // daily step count read from Health Connect by the app's service (sent only when enabled there)
+    if (isset($infos['steps']) && is_numeric($infos['steps'])) {
+      if (!is_object($eqLogic->getCmd('info', 'steps'))) {
+        // equipment created before this command existed (otherwise only created on the next save)
+        $eqLogic->createCommands('android');
+      }
+      $eqLogic->checkAndUpdateCmd('steps', intval($infos['steps']));
+    }
   }
 
   private static function setFaceDetected($eqLogic, $infos) {
