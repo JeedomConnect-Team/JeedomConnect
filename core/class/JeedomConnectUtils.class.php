@@ -785,7 +785,9 @@ class JeedomConnectUtils {
 
             $data["payload"]["category"] = array(array(
                 "id" => $data['payload']["id"],
-                "actions" => $actionsData
+                "actions" => $actionsData,
+                // CarPlay only shows the notifications of the categories that allow it (iOS 18.4+)
+                "allowInCarPlay" => !empty($data['payload']['car'])
             ));
         }
 

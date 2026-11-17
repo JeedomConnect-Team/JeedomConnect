@@ -1110,7 +1110,7 @@ class apiHelper {
         }
         if ($item == 'badge') {
           array_push($conditionsArr, $value["visibility"] ?? "");
-          if (is_array($value["colors"])) {
+          if (is_array($value["colors"] ?? null)) {
             foreach ($value["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
@@ -1129,9 +1129,9 @@ class apiHelper {
       foreach ($config['payload']['tabs'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
         if (isset($menu['badge'])) {
-          array_push($conditionsArr, $menu["visibility"] ?? "");
-          if (is_array($menu["colors"])) {
-            foreach ($menu["colors"] as $key => $color) {
+          array_push($conditionsArr, $menu["badge"]["visibility"] ?? "");
+          if (is_array($menu["badge"]["colors"] ?? null)) {
+            foreach ($menu["badge"]["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
           }
@@ -1142,9 +1142,9 @@ class apiHelper {
       foreach ($config['payload']['sections'] as $menu) {
         if (isset($menu['visibilityCond'])) array_push($conditionsArr, $menu['visibilityCond']);
         if (isset($menu['badge'])) {
-          array_push($conditionsArr, $menu["visibility"] ?? "");
-          if (is_array($menu["colors"])) {
-            foreach ($menu["colors"] as $key => $color) {
+          array_push($conditionsArr, $menu["badge"]["visibility"] ?? "");
+          if (is_array($menu["badge"]["colors"] ?? null)) {
+            foreach ($menu["badge"]["colors"] as $key => $color) {
               array_push($conditionsArr, $color["condition"] ?? "");
             }
           }
@@ -2658,8 +2658,15 @@ class apiHelper {
     } else {
       $startTime = date('Y-m-d H:i:s', $options['startTime']);
       $endTime = date('Y-m-d H:i:s', $options['endTime']);
-      JCLog::debug('Get history from: ' . $startTime . ' to ' . $endTime);
-      $history = history::all($id, $startTime, $endTime);
+      // optional aggregation (e.g. 'avg::hour': one point per hour), used by the app for the small
+      // charts behind widgets, which only draw a few hundred points; older apps don't send it
+      $grouping = null;
+      if (isset($options['grouping']) && is_string($options['grouping'])
+        && preg_match('/^(avg|min|max|sum)::(minute|hour|day)$/', $options['grouping'])) {
+        $grouping = $options['grouping'];
+      }
+      JCLog::debug('Get history from: ' . $startTime . ' to ' . $endTime . ($grouping ? ' (' . $grouping . ')' : ''));
+      $history = history::all($id, $startTime, $endTime, $grouping);
     }
 
     $result = array(
@@ -3449,6 +3456,14 @@ class apiHelper {
     }
     if (isset($infos['smsNumber'])) {
       $eqLogic->checkAndUpdateCmd('smsNumber', $infos['smsNumber']);
+    }
+    // daily step count read from Health Connect by the app's service (sent only when enabled there)
+    if (isset($infos['steps']) && is_numeric($infos['steps'])) {
+      if (!is_object($eqLogic->getCmd('info', 'steps'))) {
+        // equipment created before this command existed (otherwise only created on the next save)
+        $eqLogic->createCommands('android');
+      }
+      $eqLogic->checkAndUpdateCmd('steps', intval($infos['steps']));
     }
   }
 

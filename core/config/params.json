@@ -313,6 +313,16 @@
                 "order": 14
             },
             {
+                "logicalId": "steps",
+                "name": "Nombre de pas",
+                "type": "info",
+                "subtype": "numeric",
+                "isVisible": 1,
+                "isHistorized": 1,
+                "unite": "pas",
+                "order": 14
+            },
+            {
                 "logicalId": "play_sound",
                 "name": "Jouer un son",
                 "type": "action",

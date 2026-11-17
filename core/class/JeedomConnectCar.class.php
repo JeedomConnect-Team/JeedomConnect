@@ -442,12 +442,12 @@ class JeedomConnectCar {
 
     private static $_typeGroups = array(
         'lights' => array('Lumières', array('single-light-switch', 'single-light-dim', 'single-light-color', 'group-light')),
-        'switches' => array('Prises et interrupteurs', array('plug', 'generic-switch', 'group-plug')),
+        'switches' => array('Switch', array('plug', 'generic-switch', 'group-plug')),
         'covers' => array('Volets', array('shutter', 'group-shutter')),
         'openings' => array('Ouvertures', array('frontgate', 'door', 'window', 'group-door', 'group-window')),
         'security' => array('Sécurité', array('alarm', 'pir', 'group-alarm', 'group-pir')),
         'climate' => array('Climat', array('thermostat', 'air-con', 'temperature', 'humidity')),
-        'scenarios' => array('Scénarios et actions', array('scenario', 'generic-action-other')),
+        'scenarios' => array('Actions', array('scenario', 'generic-action-other')),
         'sensors' => array('Capteurs', array('generic-info-binary', 'generic-info-numeric', 'generic-info-string', 'power', 'brightness')),
     );
 
@@ -694,13 +694,34 @@ class JeedomConnectCar {
 
             case 'single-light-dim':
             case 'single-light-color':
-                // one tap stays on / off (the brightness slider would need its own screen), the level is shown
-                $actions = self::getDefaultActions($control, $isHour, $widget, $device);
                 $bright = $val('brightInfo');
-                if ($device['status'] == 'on' && is_numeric($bright)) {
-                    $bounds = self::getBounds($widget['brightAction'] ?? array(), $widget['brightInfo']);
-                    $device['statusText'] = 'ON · ' . self::percent($bright, $bounds) . ' %';
+                $bounds = self::getBounds($widget['brightAction'] ?? array(), $widget['brightInfo'] ?? array());
+                $level = is_numeric($bright) ? self::percent($bright, $bounds) : null;
+                if ($device['status'] == 'on' && $level !== null) {
+                    $device['statusText'] = 'ON · ' . $level . ' %';
                 }
+                if (!self::hasCmd($widget['brightAction'] ?? null)) {
+                    $actions = self::getDefaultActions($control, $isHour, $widget, $device);
+                    break;
+                }
+                $sections = array();
+                $power = self::powerItems($widget, $device['status'] == 'on');
+                if (count($power) > 0) $sections[] = array('key' => 'power', 'items' => $power);
+                $items = array();
+                foreach (array(25, 50, 75, 100) as $pct) {
+                    $target = self::round($bounds['min'] + ($bounds['max'] - $bounds['min']) * $pct / 100);
+                    $items[] = self::panelItem(null, $pct . ' %', self::withSlider($widget['brightAction'], $target), array(
+                        'selected' => $device['status'] == 'on' && $level === $pct
+                    ));
+                }
+                $section = array('key' => 'brightness', 'items' => $items);
+                if ($device['status'] == 'on' && $level !== null) $section['title'] = $level . ' %';
+                $sections[] = $section;
+                $device['mode'] = 'panel';
+                $device['panel'] = $sections;
+                // for the "all on / all off" of a group of lights
+                if (self::hasCmd($widget['onAction'] ?? null)) $device['onAction'] = JeedomConnectUtils::getActionCmd($widget['onAction']);
+                if (self::hasCmd($widget['offAction'] ?? null)) $device['offAction'] = JeedomConnectUtils::getActionCmd($widget['offAction']);
                 break;
 
             case 'generic-action-other':
@@ -739,17 +760,13 @@ class JeedomConnectCar {
 
             case 'choices-list':
                 $current = $val('statusInfo');
-                $items = array();
-                if (self::hasCmd($widget['listAction'] ?? null)) {
-                    foreach ($widget['listAction']['choices'] ?? array() as $choice) {
-                        $action = JeedomConnectUtils::getActionCmd($widget['listAction']);
-                        $action['options'] = array_merge(is_array($action['options'] ?? null) ? $action['options'] : array(), array('select' => $choice['id']));
-                        $selected = $current !== null && strval($choice['id']) === strval($current);
-                        if ($selected) $device['statusText'] = strval($choice['value']);
-                        $items[] = self::panelItem(null, strval($choice['value']), $action, array('selected' => $selected));
-                    }
+                $label = null;
+                $items = self::selectItems($widget['listAction'] ?? null, $current, $label);
+                if ($label !== null) {
+                    $device['statusText'] = $label;
+                } else if ($current !== null && $current !== '') {
+                    $device['statusText'] = strval($current);
                 }
-                if (($device['statusText'] ?? null) === null && $current !== null && $current !== '') $device['statusText'] = strval($current);
                 if (count($items) > 0) {
                     $device['mode'] = 'panel';
                     $device['panel'] = array(array('items' => $items));
@@ -787,15 +804,22 @@ class JeedomConnectCar {
                 $temp = $val('tempInfo');
                 $current = $val('modeInfo');
                 $texts = array();
+                // modes: a list of commands, or on an air-con a select command (modeSelect), like the app
+                $modes = array();
+                foreach (self::sortByIndex($widget['modes'] ?? array()) as $mode) {
+                    if (!self::hasCmd($mode)) continue;
+                    $modes[] = self::panelItem(null, self::cmdLabel($mode), JeedomConnectUtils::getActionCmd($mode), array(
+                        'selected' => self::isCurrentMode($mode, $current)
+                    ));
+                }
+                if (count($modes) == 0 && $type == 'air-con') {
+                    $label = null;
+                    $modes = self::selectItems($widget['modeSelect'] ?? null, $current, $label);
+                    if ($label !== null) $current = $label;
+                }
                 if ($type == 'air-con') {
                     $texts[] = $device['status'] == 'on' ? 'ON' : 'OFF';
-                    $power = array();
-                    if (self::hasCmd($widget['onAction'] ?? null)) {
-                        $power[] = self::panelItem('on', null, JeedomConnectUtils::getActionCmd($widget['onAction']), array('selected' => $device['status'] == 'on'));
-                    }
-                    if (self::hasCmd($widget['offAction'] ?? null)) {
-                        $power[] = self::panelItem('off', null, JeedomConnectUtils::getActionCmd($widget['offAction']), array('selected' => $device['status'] != 'on'));
-                    }
+                    $power = self::powerItems($widget, $device['status'] == 'on');
                     if (count($power) > 0) $sections[] = array('key' => 'power', 'items' => $power);
                 }
                 $temps = array();
@@ -819,14 +843,22 @@ class JeedomConnectCar {
                     if (is_numeric($setpoint)) $section['title'] = self::round($setpoint) . $unit;
                     $sections[] = $section;
                 }
-                $modes = array();
-                foreach (self::sortByIndex($widget['modes'] ?? array()) as $mode) {
-                    if (!self::hasCmd($mode)) continue;
-                    $modes[] = self::panelItem(null, self::cmdLabel($mode), JeedomConnectUtils::getActionCmd($mode), array(
-                        'selected' => self::isCurrentMode($mode, $current)
-                    ));
-                }
                 if (count($modes) > 0) $sections[] = array('key' => 'modes', 'items' => $modes);
+                if ($type == 'air-con') {
+                    // ventilation: a select command or a slider; oscillations: select commands
+                    $fan = $widget['fanSpeedAction'] ?? null;
+                    if (self::hasCmd($fan)) {
+                        $label = null;
+                        $fanItems = ($fan['subType'] ?? '') == 'slider' ? self::stepItems($fan, $widget['fanSpeedInfo'] ?? array(), $val('fanSpeedInfo'))
+                            : self::selectItems($fan, $val('fanSpeedInfo'), $label);
+                        if (count($fanItems) > 0) $sections[] = array('key' => 'fan', 'items' => $fanItems);
+                    }
+                    foreach (array('swing' => 'swing', 'swing_h' => 'horizontalSwing') as $key => $name) {
+                        $label = null;
+                        $swingItems = self::selectItems($widget[$name . 'Action'] ?? null, $val($name . 'Info'), $label);
+                        if (count($swingItems) > 0) $sections[] = array('key' => $key, 'items' => $swingItems);
+                    }
+                }
                 if (count($sections) > 0) {
                     $device['mode'] = 'panel';
                     $device['panel'] = $sections;
@@ -877,13 +909,7 @@ class JeedomConnectCar {
                 }
                 if (count($volume) > 0) $sections[] = array('key' => 'volume', 'items' => $volume);
 
-                $power = array();
-                if (self::hasCmd($widget['onAction'] ?? null)) {
-                    $power[] = self::panelItem('on', null, JeedomConnectUtils::getActionCmd($widget['onAction']), array('selected' => $device['status'] == 'on'));
-                }
-                if (self::hasCmd($widget['offAction'] ?? null)) {
-                    $power[] = self::panelItem('off', null, JeedomConnectUtils::getActionCmd($widget['offAction']), array('selected' => $device['status'] != 'on'));
-                }
+                $power = self::powerItems($widget, $device['status'] == 'on');
                 if (count($power) > 0) $sections[] = array('key' => 'power', 'items' => $power);
 
                 if (count($sections) > 0) {
@@ -1027,10 +1053,10 @@ class JeedomConnectCar {
             case 'group-light':
             case 'group-plug':
                 $items[] = self::folderItem('all_on', $collect(function ($child) {
-                    return ($child['mode'] ?? '') == 'toggle' ? $child['onAction'] : null;
+                    return $child['onAction'] ?? null;
                 }));
                 $items[] = self::folderItem('all_off', $collect(function ($child) {
-                    return ($child['mode'] ?? '') == 'toggle' ? $child['offAction'] : null;
+                    return $child['offAction'] ?? null;
                 }));
                 break;
             case 'group-shutter':
@@ -1057,6 +1083,53 @@ class JeedomConnectCar {
         }, $actions));
         if (in_array('ACK', array_column($actions, 'challenge'), true)) $item['challenge'] = 'ACK';
         return $item;
+    }
+
+    /** Marche / Arrêt rows of a panel, the current state checked */
+    private static function powerItems($widget, $isOn) {
+        $items = array();
+        if (self::hasCmd($widget['onAction'] ?? null)) {
+            $items[] = self::panelItem('on', null, JeedomConnectUtils::getActionCmd($widget['onAction']), array('selected' => $isOn));
+        }
+        if (self::hasCmd($widget['offAction'] ?? null)) {
+            $items[] = self::panelItem('off', null, JeedomConnectUtils::getActionCmd($widget['offAction']), array('selected' => !$isOn));
+        }
+        return $items;
+    }
+
+    /**
+     * Panel rows for the choices of a select cmd (choices-list, air-con mode / fan / swing), sent with
+     * options.select. The active one is the choice whose id is the info value, like the app.
+     *
+     * @param string|null $currentLabel out: name of the active choice
+     */
+    private static function selectItems($widgetAction, $current, &$currentLabel = null) {
+        $items = array();
+        if (!self::hasCmd($widgetAction)) return $items;
+        $choices = $widgetAction['choices'] ?? JeedomConnect::getChoiceData($widgetAction['id']);
+        foreach ($choices as $choice) {
+            $action = JeedomConnectUtils::getActionCmd($widgetAction);
+            $action['options'] = array_merge(is_array($action['options'] ?? null) ? $action['options'] : array(), array('select' => $choice['id']));
+            $selected = $current !== null && strval($choice['id']) === strval($current);
+            if ($selected) $currentLabel = strval($choice['value']);
+            $items[] = self::panelItem(null, strval($choice['value']), $action, array('selected' => $selected));
+        }
+        return $items;
+    }
+
+    /** - / + rows for a slider cmd, each showing the value it will send (setpoint-like) */
+    private static function stepItems($widgetAction, $info, $value) {
+        $bounds = self::getBounds($widgetAction, $info);
+        $unit = $info['unit'] ?? '';
+        $base = is_numeric($value) ? min(max(floatval($value), $bounds['min']), $bounds['max']) : $bounds['min'];
+        $items = array();
+        foreach (array('minus' => -1, 'plus' => 1) as $key => $sign) {
+            $target = self::round(min(max($base + $sign * $bounds['increment'], $bounds['min']), $bounds['max']));
+            $items[] = self::panelItem($key, ($sign < 0 ? '−' : '+') . self::round($bounds['increment']), self::withSlider($widgetAction, $target), array(
+                'text' => '→ ' . $target . $unit
+            ));
+        }
+        return $items;
     }
 
     /** a panel row: key = named by the clients (on, off, play...), label = the text otherwise */
