@@ -2658,8 +2658,15 @@ class apiHelper {
     } else {
       $startTime = date('Y-m-d H:i:s', $options['startTime']);
       $endTime = date('Y-m-d H:i:s', $options['endTime']);
-      JCLog::debug('Get history from: ' . $startTime . ' to ' . $endTime);
-      $history = history::all($id, $startTime, $endTime);
+      // optional aggregation (e.g. 'avg::hour': one point per hour), used by the app for the small
+      // charts behind widgets, which only draw a few hundred points; older apps don't send it
+      $grouping = null;
+      if (isset($options['grouping']) && is_string($options['grouping'])
+        && preg_match('/^(avg|min|max|sum)::(minute|hour|day)$/', $options['grouping'])) {
+        $grouping = $options['grouping'];
+      }
+      JCLog::debug('Get history from: ' . $startTime . ' to ' . $endTime . ($grouping ? ' (' . $grouping . ')' : ''));
+      $history = history::all($id, $startTime, $endTime, $grouping);
     }
 
     $result = array(
