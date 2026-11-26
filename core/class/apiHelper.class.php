@@ -450,7 +450,8 @@ class apiHelper {
           break;
 
         case 'ADD_GEOFENCE':
-          self::addGeofence($eqLogic, $param['geofence'], $param['coordinates']);
+          // 'coordinates' is ignored : the app sent the default position of the map (Paris) until 1.30.3
+          self::addGeofence($eqLogic, $param['geofence']);
           return null;
           break;
 
@@ -1334,11 +1335,10 @@ class apiHelper {
   /**
    * @param JeedomConnect $eqLogic
    * @param array $geo
-   * @param array $coordinates
    * @return void
    */
-  private static function addGeofence($eqLogic, $geo, $coordinates) {
-    $eqLogic->addGeofenceCmd($geo, $coordinates);
+  private static function addGeofence($eqLogic, $geo) {
+    $eqLogic->addGeofenceCmd($geo);
   }
 
   /**
@@ -1360,30 +1360,7 @@ class apiHelper {
    * @return void
    */
   private static function setGeofence($eqLogic, $param) {
-    $ts = array_key_exists('timestampMeta', $param) ? floor($param['timestampMeta']['systemTime'] / 1000) : strtotime($param['timestamp']);
-
-    $activity = $param['activity']['type'];
-    $accuracy = $param['coords']['accuracy'];
-    if ($accuracy < 50 || ($activity == 'in_vehicle' && $accuracy && $accuracy < 400)) {
-      $eqLogic->setCoordinates($param['coords']['latitude'], $param['coords']['longitude'], $param['coords']['altitude'], $param['activity']['type'], $param['battery']['level'] * 100, $ts);
-    } else {
-      JCLog::debug("[GeoLoc] data not saved, not accurate enough");
-    }
-
-    $activityCmd = $eqLogic->getCmd(null, 'activity');
-    if (is_object($activityCmd)) {
-      $activityCmd->event($param['activity']['type']);
-    }
-
-    if (array_key_exists('battery', $param)) {
-      if ($param['battery']['level'] > -1) {
-        $batteryCmd = $eqLogic->getCmd(null, 'battery');
-        if (is_object($batteryCmd)) {
-          $batteryCmd->event($param['battery']['level'] * 100, date('Y-m-d H:i:s', $ts));
-        }
-      }
-    }
-    return;
+    $eqLogic->setLocation($param);
   }
   /**
    * Undocumented function

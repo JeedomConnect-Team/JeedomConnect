@@ -37,6 +37,8 @@ class JeedomConnect extends eqLogic {
 	/*     * *************************Attributs****************************** */
 
 	private const PYTHON_PATH = __DIR__ . '/../../resources/venv/bin/python3';
+	// a position older than this (seconds) isn't the current one
+	private const GEOLOC_MAX_AGE = 300;
 	public static $_initialConfig = array(
 		'type' => 'JEEDOM_CONFIG',
 		'formatVersion' => '1.0',
@@ -1447,11 +1449,12 @@ class JeedomConnect extends eqLogic {
 		return $sendBin;
 	}
 
-	public function addGeofenceCmd($geofence, $coordinates) {
+	public function addGeofenceCmd($geofence) {
 		JCLog::debug("Add or update geofence cmd : " . json_encode($geofence));
 
 		$geofenceCmd = cmd::byEqLogicIdAndLogicalId($this->getId(), 'geofence_' . $geofence['identifier']);
-		if (!is_object($geofenceCmd)) {
+		$isNew = !is_object($geofenceCmd);
+		if ($isNew) {
 			$geofenceCmd = new JeedomConnectCmd();
 			$geofenceCmd->setLogicalId('geofence_' . $geofence['identifier']);
 			$geofenceCmd->setEqLogic_id($this->getId());
@@ -1459,13 +1462,28 @@ class JeedomConnect extends eqLogic {
 			$geofenceCmd->setSubType('binary');
 			$geofenceCmd->setIsVisible(1);
 		}
+		$hasMoved = false;
+		foreach (array('latitude', 'longitude', 'radius') as $key) {
+			if ($geofenceCmd->getConfiguration($key) != $geofence[$key]) $hasMoved = true;
+			$geofenceCmd->setConfiguration($key, $geofence[$key]);
+		}
 		$geofenceCmd->setName(__($geofence['extras']['name'], __FILE__));
-		$geofenceCmd->setConfiguration('latitude', $geofence['latitude']);
-		$geofenceCmd->setConfiguration('longitude', $geofence['longitude']);
-		$geofenceCmd->setConfiguration('radius', $geofence['radius']);
 		$geofenceCmd->save();
 
-		$this->setCoordinates($coordinates['latitude'], $coordinates['longitude'], $coordinates['altitude'], '', '', time());
+		if (!$isNew && !$hasMoved) return;
+
+		// state of this zone only, from the last known position (the phone also sends an ENTER event
+		// when a zone is added around it)
+		$positionCmd = $this->getCmd(null, 'position');
+		$position = is_object($positionCmd) ? explode(',', (string) $positionCmd->execCmd()) : array();
+		$state = 0;
+		if (count($position) >= 2 && is_numeric($position[0]) && is_numeric($position[1])) {
+			$dist = JeedomConnectUtils::getDistance($position[0], $position[1], $geofence['latitude'], $geofence['longitude']);
+			$state = ($dist < $geofence['radius']) ? 1 : 0;
+		} elseif (!$isNew) {
+			return;
+		}
+		if ($geofenceCmd->execCmd() !== $state) $geofenceCmd->event($state);
 	}
 
 	public function removeGeofenceCmd($geofence) {
@@ -1477,54 +1495,215 @@ class JeedomConnect extends eqLogic {
 		}
 	}
 
-	public function setCoordinates($lat, $lgt, $alt, $activity, $batteryLevel, $timestamp) {
-		$positionCmd = $this->getCmd(null, 'position');
+	/**
+	 * Location sent by the phone (GEOLOC). Every value received goes into the history of its command
+	 * (if historized), but the commands and the zones only follow what really is the current position :
+	 *  - position already old when the phone recorded it (cached by the system, the SDK may send it when
+	 *    the app is started in background), older than the last one applied, or not accurate enough :
+	 *    history only
+	 *  - position delivered late (no network) : last known position, so the commands are updated, but
+	 *    without triggering anything, and the zones don't change
+	 * A zone event (ENTER / EXIT) is applied to its zone whatever the quality of the position sent with it,
+	 * except an EXIT whose position (unless outdated) is still inside the zone : history only.
+	 *
+	 * @param array $param
+	 * @return void
+	 */
+	public function setLocation($param) {
+		$coords = $param['coords'] ?? array();
+		if (!isset($coords['latitude']) || !isset($coords['longitude'])) {
+			JCLog::debug("[GeoLoc] no coordinates received");
+			return;
+		}
+
+		$now = time();
+		list($fixTs, $recordedTs) = self::getLocationTimes($param, $now);
+
+		$activity = $param['activity']['type'] ?? '';
+		$level = $param['battery']['level'] ?? -1;
+		$accuracy = $coords['accuracy'] ?? 0;
+		$lat = $coords['latitude'];
+		$lgt = $coords['longitude'];
+
+		$lastTs = intval($this->getCache('geolocPositionTs', 0));
+		$isAccurate = $accuracy < 50 || ($activity == 'in_vehicle' && $accuracy < 400);
+		$isLate = ($now - $fixTs) > self::GEOLOC_MAX_AGE;
+
+		$rejected = null;
+		if (($recordedTs - $fixTs) > self::GEOLOC_MAX_AGE) {
+			$rejected = 'already ' . ($recordedTs - $fixTs) . 's old when recorded';
+		} elseif ($fixTs < $lastTs) {
+			$rejected = 'older than the last position (' . date('Y-m-d H:i:s', $lastTs) . ')';
+		}
+		$isOutdated = !is_null($rejected);
+		if (!$isOutdated && !$isAccurate) $rejected = 'not accurate enough (' . $accuracy . 'm)';
+
+		$mode = !is_null($rejected) ? 'history' : ($isLate ? 'silent' : 'event');
+		if ($mode == 'history') {
+			JCLog::debug('[GeoLoc] position of ' . date('Y-m-d H:i:s', $fixTs) . ' not applied : ' . $rejected);
+		} elseif ($mode == 'silent') {
+			JCLog::debug('[GeoLoc] position of ' . date('Y-m-d H:i:s', $fixTs) . ' received ' . ($now - $fixTs) . 's later : zones not updated');
+		}
+
+		// position & distance
 		$info = $lat . "," . $lgt;
 		if ($this->getConfiguration('addAltitude', false)) {
-			$info .= "," . $alt;
+			$info .= "," . ($coords['altitude'] ?? '');
 			$info .= "," . $activity;
-			$info .= "," . $batteryLevel;
+			$info .= "," . $level * 100;
 		}
-		$positionCmd->event($info, date('Y-m-d H:i:s', $timestamp));
-		$this->setGeofencesByCoordinates($lat, $lgt, $timestamp);
+		$this->setLocationCmd('position', $info, $fixTs, $mode);
+		$this->setLocationCmd('distance', JeedomConnectUtils::getDistance($lat, $lgt), $fixTs, $mode);
+		if ($mode != 'history') $this->setCache('geolocPositionTs', $fixTs);
+
+		// zones
+		$geofence = $param['geofence'] ?? null;
+		if (!is_array($geofence) || !in_array($geofence['action'] ?? '', array('ENTER', 'EXIT'))) $geofence = null;
+		if (!is_null($geofence)) {
+			$eventTs = self::getTimestamp($geofence['timestamp'] ?? null) ?: $recordedTs;
+			$geofence['ts'] = min($eventTs, $now);
+		}
+		// an EXIT is checked against its position : the accuracy as margin, none if not accurate (the position
+		// must at least be outside the radius), not checked if the position is outdated
+		$exitMargin = $isOutdated ? null : ($isAccurate ? $accuracy : 0);
+		$this->setZones($lat, $lgt, $exitMargin, $fixTs, $mode == 'event', $geofence);
+
+		// activity & battery : don't depend on the accuracy of the position
+		$mode = $isOutdated ? 'history' : ($isLate ? 'silent' : 'event');
+		if ($activity != '') $this->setLocationCmd('activity', $activity, $fixTs, $mode);
+		if ($level > -1) $this->setLocationCmd('battery', $level * 100, $fixTs, $mode);
 	}
 
-	public function setGeofencesByCoordinates($lat, $lgt, $timestamp) {
-		JCLog::debug("[setGeofencesByCoordinates] " . $lat . ' -- ' . $lgt);
+	/**
+	 * @param mixed $value ISO date or milliseconds
+	 * @return int seconds, 0 if unknown
+	 */
+	private static function getTimestamp($value) {
+		if (is_numeric($value)) return intval($value / 1000);
+		return is_string($value) ? intval(strtotime($value)) : 0;
+	}
 
+	/**
+	 * @param array $param
+	 * @param int $now
+	 * @return array time of the GPS fix, time when the phone recorded it (never in the future)
+	 */
+	private static function getLocationTimes($param, $now) {
+		$meta = $param['timestampMeta'] ?? array();
+		$systemTs = self::getTimestamp($meta['systemTime'] ?? null);
+		$recordedTs = $systemTs ?: self::getTimestamp($param['recorded_at'] ?? null);
+
+		// Android : age on the monotonic clock, the time given by the GPS chip is wrong on some devices
+		$elapsed = $meta['elapsedRealtime'] ?? 0;
+		$systemElapsed = $meta['systemClockElapsedRealtime'] ?? 0;
+		if ($systemTs && $elapsed > 0 && $systemElapsed >= $elapsed) {
+			$fixTs = $systemTs - intval(($systemElapsed - $elapsed) / 1000);
+		} else {
+			$fixTs = self::getTimestamp($param['timestamp'] ?? null) ?: ($recordedTs ?: $now);
+		}
+		return array(min($fixTs, $now), min($recordedTs ?: $fixTs, $now));
+	}
+
+	/**
+	 * @param string $logicalId
+	 * @param mixed $value
+	 * @param int $ts time of the value
+	 * @param string $mode event = normal update, silent = no scenario / listener triggered, history = history only
+	 * @return void
+	 */
+	private function setLocationCmd($logicalId, $value, $ts, $mode) {
+		$cmd = $this->getCmd(null, $logicalId);
+		if (!is_object($cmd)) return;
+
+		$date = date('Y-m-d H:i:s', $ts);
+		if ($mode == 'event') {
+			$cmd->event($value, $date);
+			return;
+		}
+
+		$cmd->addHistoryValue($value, $date);
+		if ($mode != 'silent') return;
+
+		$current = $cmd->execCmd();
+		$lastDate = $cmd->getCollectDate();
+		if ($current !== '' && $lastDate != '' && strtotime($lastDate) > $ts) return; // updated since, e.g. battery
+
+		$valueDate = ($current == $value) ? $cmd->getValueDate() : $date;
+		$cmd->setCache(array('value' => $value, 'collectDate' => $date, 'valueDate' => $valueDate));
+		event::add('cmd::update', array(
+			'cmd_id' => $cmd->getId(),
+			'value' => $value,
+			'display_value' => $value,
+			'unit' => $cmd->getUnite(),
+			'raw_unit' => $cmd->getUnite(),
+			'valueDate' => $valueDate,
+			'collectDate' => $date
+		));
+	}
+
+	/**
+	 * @param float $lat
+	 * @param float $lgt
+	 * @param float|null $exitMargin an EXIT isn't applied if the position is inside the zone by more than this, null = not checked
+	 * @param int $fixTs
+	 * @param bool $usePosition false = the position says nothing about the zones (old, late, not accurate)
+	 * @param array|null $geofence zone event : identifier, action, ts
+	 * @return void
+	 */
+	private function setZones($lat, $lgt, $exitMargin, $fixTs, $usePosition, $geofence) {
+		if (!$usePosition && is_null($geofence)) return;
+		JCLog::debug("[setZones] " . $lat . ' -- ' . $lgt . (is_null($geofence) ? '' : ' // ' . $geofence['action'] . ' ' . $geofence['identifier']));
+
+		$zonesTs = intval($this->getCache('geolocZonesTs', 0));
 		$zoneFound = null;
-		// foreach (cmd::byEqLogicId($this->getId()) as $cmd) {
+		$updated = $usePosition;
 		foreach ($this->getCmd('info') as $cmd) {
-			if (strpos(strtolower($cmd->getLogicalId()), 'geofence') !== false) {
-				$dist = JeedomConnectUtils::getDistance($lat, $lgt, $cmd->getConfiguration('latitude'), $cmd->getConfiguration('longitude'));
-				$radius = $cmd->getConfiguration('radius');
-				JCLog::trace("  -- testing " . $cmd->getName() . ' --> distance = ' . $dist . ' // radius : ' . $radius);
-				if ($dist < $radius) {
-					JCLog::trace("  ---- dist lower than radius - entering the area");
-					$zoneFound = $cmd->getName();
-					JCLog::debug("Zone found : " . $zoneFound);
-					if ($cmd->execCmd() != 1) {
-						JCLog::debug("Set 1 for geofence " . $cmd->getName());
-						$cmd->event(1, date('Y-m-d H:i:s', $timestamp));
-					}
+			if (strpos(strtolower($cmd->getLogicalId()), 'geofence') === false) continue;
+
+			$dist = JeedomConnectUtils::getDistance($lat, $lgt, $cmd->getConfiguration('latitude'), $cmd->getConfiguration('longitude'));
+			$radius = $cmd->getConfiguration('radius');
+			JCLog::trace("  -- testing " . $cmd->getName() . ' --> distance = ' . $dist . ' // radius : ' . $radius);
+			$zoneTs = intval($cmd->getCache('geolocTs', 0)); // last event applied to this zone
+			$eventDone = false;
+
+			if (!is_null($geofence) && $cmd->getLogicalId() == 'geofence_' . $geofence['identifier']) {
+				$state = ($geofence['action'] == 'ENTER') ? 1 : 0;
+				$date = date('Y-m-d H:i:s', $geofence['ts']);
+				if ($geofence['ts'] < max($zonesTs, $zoneTs)) {
+					JCLog::debug("[GeoLoc] " . $geofence['action'] . ' of ' . $date . ' not applied to ' . $cmd->getName() . ' : older than its current state');
+					$cmd->addHistoryValue($state, $date);
+				} elseif ($state == 0 && !is_null($exitMargin) && ($dist + $exitMargin) < $radius) {
+					JCLog::debug("[GeoLoc] EXIT of " . $date . ' not applied to ' . $cmd->getName() . ' : the position is inside');
+					$cmd->addHistoryValue($state, $date);
 				} else {
-					JCLog::trace("  ---- dist greater than radius - not in this area");
-					if ($cmd->execCmd() !== 0) {
-						JCLog::debug("Set 0 for geofence " . $cmd->getName());
-						$cmd->event(0, date('Y-m-d H:i:s', $timestamp));
-					}
+					JCLog::debug("Set " . $state . " for geofence " . $cmd->getName() . ' (' . $geofence['action'] . ' event)');
+					$cmd->setCache('geolocTs', $geofence['ts']);
+					$cmd->event($state, $date);
+					$eventDone = true;
+					$updated = true;
 				}
 			}
+
+			if (!$eventDone && $usePosition && $fixTs >= $zoneTs) {
+				$state = ($dist < $radius) ? 1 : 0;
+				if ($cmd->execCmd() !== $state) {
+					JCLog::debug("Set " . $state . " for geofence " . $cmd->getName());
+					$cmd->event($state, date('Y-m-d H:i:s', $fixTs));
+				}
+			}
+
+			if ($cmd->execCmd() == 1) {
+				$zoneFound = $cmd->getName();
+				JCLog::debug("Zone found : " . $zoneFound);
+			}
 		}
+		if ($usePosition) $this->setCache('geolocZonesTs', $fixTs);
+		if (!$updated) return;
 
 		$zoneTxt = cmd::byEqLogicIdAndLogicalId($this->getId(), 'currentGeolocTxt');
 		if (is_object($zoneTxt)) {
 			!is_null($zoneFound) ? $zoneTxt->event($zoneFound) : $zoneTxt->event(__('Hors zone', __FILE__));
 		}
-
-		$distToDefault = JeedomConnectUtils::getDistance($lat, $lgt);
-		$cmdDistance = $this->getCmd(null, 'distance');
-		if (is_object($cmdDistance)) $cmdDistance->event($distToDefault);
 	}
 
 	public function preInsert() {

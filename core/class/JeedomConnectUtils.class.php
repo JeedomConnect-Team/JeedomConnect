@@ -965,7 +965,8 @@ class JeedomConnectUtils {
 
         $theta = $lon1 - $lon2;
         $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
-        $dist = acos($dist);
+        // rounding can give slightly more than 1 for identical points : acos would return NAN
+        $dist = acos(max(-1, min(1, $dist)));
         $dist = rad2deg($dist);
         $dist = ($dist * 60 * 1.1515) * 1609.344;
         return floor($dist);
