@@ -5227,6 +5227,20 @@
 					"description": "Flux fluide en LAN et hors LAN via go2rtc, au lieu du flux RTSP/Snapshot classique"
 				},
 				{
+					"id": "twoWayAudio",
+					"name": "Audio bidirectionnel (micro)",
+					"required": false,
+					"category": "binary",
+					"description": "Bouton micro pour parler via le haut-parleur de la caméra. Nécessite le flux vidéo optimisé (go2rtc) et une caméra compatible"
+				},
+				{
+					"id": "twoWayStreamUrl",
+					"name": "URL flux retour micro (facultatif)",
+					"required": false,
+					"category": "string",
+					"description": "Facultatif. Source go2rtc dédiée au canal retour audio lorsque la caméra n'utilise pas le backchannel ONVIF standard (ex : URL RTSP Talk locale fournie par le plugin Reolink)"
+				},
+				{
 					"id": "audioAutoplay",
 					"name": "Son automatique à l'ouverture",
 					"required": false,

@@ -239,7 +239,7 @@ class JeedomConnectWidget extends config {
 	// Champs dont la modification justifie de rappeler l'API go2rtc (voir
 	// saveConfig()) - tout le reste (nom, sous-titre, ratio, refreshInterval
 	// du snapshot...) n'a aucun effet sur l'enregistrement du flux WebRTC.
-	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password', 'go2rtcTalkUrl', 'twoWayAudio');
+	private static $_go2rtcRelevantKeys = array('webrtcEnabled', 'streamUrl', 'streamUrlInfo', 'username', 'password', 'go2rtcTalkUrl', 'twoWayAudio', 'twoWayStreamUrl');
 
 	private static function go2rtcRegistrationNeeded($previousConf, $conf) {
 		if ($previousConf === null) {
@@ -429,6 +429,14 @@ class JeedomConnectWidget extends config {
 					// flux auprès de go2rtc.
 					$conf['streamUrl'] .= '?backchannel=1';
 				}
+			}
+		}
+
+		if (($conf['type'] ?? '') == 'camera') {
+			unset($conf['go2rtcTalkUrl']);
+			$talkSource = trim($conf['twoWayStreamUrl'] ?? '');
+			if (!empty($conf['twoWayAudio']) && $talkSource !== '') {
+				$conf['go2rtcTalkUrl'] = $talkSource;
 			}
 		}
 
