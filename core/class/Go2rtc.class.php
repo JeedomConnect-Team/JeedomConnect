@@ -1066,7 +1066,10 @@ class Go2rtc {
 		// sources (PUT /api/streams, internal/streams/api.go).
 		$sources = array($url);
 		if (!empty($conf['twoWayAudio']) && !empty($conf['go2rtcTalkUrl'])) {
-			$sources[] = $conf['go2rtcTalkUrl'];
+			if (($conf['type'] ?? '') == 'camera' && stripos($url, 'rtsp') === 0 && strpos($url, '#') === false) {
+				$sources[0] = $url . '#backchannel=0';
+			}
+			$sources[] = str_replace(array_keys($replaceArr), $replaceArr, $conf['go2rtcTalkUrl']);
 		}
 		$apiUrl = self::getLocalApiUrl() . '/api/streams?name=' . rawurlencode(self::streamName($widgetId));
 		foreach ($sources as $source) {
